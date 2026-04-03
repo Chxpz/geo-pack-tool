@@ -1,0 +1,104 @@
+# AgenticRev — Local Development Stack
+#
+# Provides a Supabase-compatible Postgres environment via Docker.
+# No cloud account required.
+#
+# Setup (one-time):
+#   1. node scripts/gen-dev-jwt.mjs   → copy output into .env.local
+#   2. docker compose up -d
+#   3. cp .env.local.example .env.local  (already done in step 1)
+#
+# Supabase Studio: http://localhost:54323
+# API gateway:     http://localhost:8000
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Run migrations on first start (order matters — roles before schema)
+      - ./supabase/migrations/000_supabase_roles.sql:/docker-entrypoint-initdb.d/000_supabase_roles.sql:ro
+      - ./supabase/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+      - ./supabase/migrations/002_auth_tokens.sql:/docker-entrypoint-initdb.d/002_auth_tokens.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── PostgREST (REST API) ──────────────────────────────────────────────────
+  rest:
+    image: postgrest/postgrest:v12.2.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${PGRST_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+
+  # ── Nginx API Gateway (localhost:8000) ────────────────────────────────────
+  # Routes /rest/v1/* → PostgREST (mirrors production Supabase URL structure)
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - rest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Supabase Studio (optional, UI for DB management) ─────────────────────
+  studio:
+    image: supabase/studio:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "54323:3000"
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DEFAULT_ORGANIZATION_NAME: AgenticRev
+      DEFAULT_PROJECT_NAME: agenticrev-local
+      SUPABASE_URL: http://proxy:8000
+      SUPABASE_PUBLIC_URL: http://localhost:8000
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+  # ── pg-meta (used by Studio) ──────────────────────────────────────────────
+  meta:
+    image: supabase/postgres-meta:v0.85.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+volumes:
+  db_data:
