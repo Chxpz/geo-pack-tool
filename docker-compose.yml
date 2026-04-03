@@ -28,6 +28,10 @@ services:
       - ./supabase/migrations/000_supabase_roles.sql:/docker-entrypoint-initdb.d/000_supabase_roles.sql:ro
       - ./supabase/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
       - ./supabase/migrations/002_auth_tokens.sql:/docker-entrypoint-initdb.d/002_auth_tokens.sql:ro
+      - ./supabase/migrations/003_pivot_schema.sql:/docker-entrypoint-initdb.d/003_pivot_schema.sql:ro
+      - ./supabase/migrations/004_reports_table.sql:/docker-entrypoint-initdb.d/004_reports_table.sql:ro
+      - ./supabase/migrations/005_deep_research_results.sql:/docker-entrypoint-initdb.d/005_deep_research_results.sql:ro
+      - ./supabase/migrations/006_scan_runs.sql:/docker-entrypoint-initdb.d/006_scan_runs.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
