@@ -1,0 +1,27 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "{\"business_mentioned\":false,\"position\":null,\"sentiment\":\"neutral\",\"competitors\":[{\"name\":\"Northside Dental\",\"position\":1,\"sentiment\":\"positive\"}]}"
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0,
+      "safetyRatings": [
+        {
+          "category": "HARM_CATEGORY_HATE_SPEECH",
+          "probability": "NEGLIGIBLE"
+        }
+      ]
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 96,
+    "candidatesTokenCount": 33,
+    "totalTokenCount": 129
+  }
+}

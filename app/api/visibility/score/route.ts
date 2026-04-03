@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { calculateVisibilityScore } from '@/lib/visibility-score';
 import type { VisibilityScoreResult } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/visibility/score' });
+
   try {
     const session = await auth();
     if (!session) {
@@ -163,7 +166,7 @@ export async function GET(request: NextRequest) {
       trend_period: '30d',
     } as VisibilityScoreResult);
   } catch (error) {
-    console.error('Visibility score error:', error);
+    requestLogger.error({ err: error }, 'Visibility score calculation failed');
     return NextResponse.json(
       { error: 'Failed to calculate visibility score' },
       { status: 500 }

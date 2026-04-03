@@ -239,14 +239,14 @@ interface StripeSubData {
   currentPeriodEnd: number | null; // billing_cycle_anchor in Stripe v20
 }
 
-function resolvePlanFromPriceId(priceId: string | null): PlanConfig {
+export function resolvePlanFromPriceId(priceId: string | null): PlanConfig {
   for (const plan of Object.values(PLAN_CONFIG)) {
     if (plan.stripePriceId && plan.stripePriceId === priceId) return plan;
   }
   return PLAN_CONFIG.free;
 }
 
-function mapStripeStatus(
+export function mapStripeStatus(
   status: Stripe.Subscription.Status,
 ): Subscription['status'] {
   switch (status) {

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/geo-audit' });
+
   try {
     const session = await auth();
 
@@ -42,7 +45,10 @@ export async function GET(request: NextRequest) {
       .limit(limit);
 
     if (error) {
-      console.error('Error fetching geo audits:', error);
+      requestLogger.error(
+        { error, userId: session.user.id, businessId },
+        'Failed to fetch geo audits',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch geo audits' },
         { status: 500 }
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(audits || []);
   } catch (error) {
-    console.error('GET /api/geo-audit error:', error);
+    requestLogger.error({ err: error }, 'Geo-audit fetch request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -60,6 +66,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/geo-audit' });
+
   try {
     const session = await auth();
 
@@ -117,7 +125,10 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error updating audit:', error);
+      requestLogger.error(
+        { error, userId: session.user.id, auditId: audit_id },
+        'Failed to update geo audit',
+      );
       return NextResponse.json(
         { error: 'Failed to update audit' },
         { status: 500 }
@@ -126,7 +137,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error('PATCH /api/geo-audit error:', error);
+    requestLogger.error({ err: error }, 'Geo-audit update request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

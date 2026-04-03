@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { withLogContext } from '@/lib/logger';
 import {
   sonarResponseSchema,
   structuredScanOutputSchema,
@@ -15,6 +16,7 @@ import {
 
 const SONAR_API_BASE = 'https://api.perplexity.ai/chat/completions';
 const SONAR_API_KEY = process.env.PERPLEXITY_SONAR_API_KEY;
+const sonarLogger = withLogContext({ scope: 'perplexity-sonar' });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -105,7 +107,10 @@ export async function querySonar(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Perplexity Sonar API error:`, response.status, errorText);
+      sonarLogger.error(
+        { status: response.status, errorText },
+        'Perplexity Sonar API request failed',
+      );
       throw new Error(
         `Perplexity API error: ${response.status} ${errorText.slice(0, 100)}`,
       );
@@ -117,7 +122,7 @@ export async function querySonar(
     return parsed;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('Response validation error:', error.errors);
+      sonarLogger.error({ error: error.errors }, 'Perplexity Sonar response validation failed');
       throw new Error(`Invalid Sonar API response: ${error.errors[0].message}`);
     }
     throw error;
@@ -218,10 +223,13 @@ Analyze this query's AI search results and identify where each business appears.
     const parsed = JSON.parse(jsonStr);
     structuredData = structuredScanOutputSchema.parse(parsed);
   } catch (error) {
-    console.error('Failed to parse structured output:', {
-      error: error instanceof Error ? error.message : String(error),
-      responseContent: response.choices[0]?.message?.content?.slice(0, 200),
-    });
+    sonarLogger.error(
+      {
+        err: error,
+        responseContent: response.choices[0]?.message?.content?.slice(0, 200),
+      },
+      'Failed to parse structured Sonar output',
+    );
     throw new Error('Failed to parse business visibility scan response');
   }
 

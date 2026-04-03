@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface RouteParams {
@@ -10,6 +11,8 @@ export async function PATCH(
   request: NextRequest,
   props: { params: Promise<RouteParams> }
 ) {
+  const requestLogger = createRequestLogger(request, { route: '/api/admin/tasks/[id]' });
+
   try {
     const params = await props.params;
     const taskId = params.id;
@@ -71,7 +74,7 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error('Error updating task:', error);
+      requestLogger.error({ error, userId: session.user.id, taskId }, 'Failed to update task');
       return NextResponse.json(
         { error: 'Failed to update task' },
         { status: 500 }
@@ -80,7 +83,7 @@ export async function PATCH(
 
     return NextResponse.json(task);
   } catch (error) {
-    console.error('PATCH /api/admin/tasks/[id] error:', error);
+    requestLogger.error({ err: error }, 'Admin task update request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -92,6 +95,8 @@ export async function GET(
   request: NextRequest,
   props: { params: Promise<RouteParams> }
 ) {
+  const requestLogger = createRequestLogger(request, { route: '/api/admin/tasks/[id]' });
+
   try {
     const params = await props.params;
     const taskId = params.id;
@@ -134,7 +139,7 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error('Error fetching task:', error);
+      requestLogger.error({ error, userId: session.user.id, taskId }, 'Failed to fetch task');
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
@@ -143,7 +148,7 @@ export async function GET(
 
     return NextResponse.json(task);
   } catch (error) {
-    console.error('GET /api/admin/tasks/[id] error:', error);
+    requestLogger.error({ err: error }, 'Admin task fetch request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pullFullSeoSnapshot } from '@/lib/semrush';
 
@@ -24,6 +25,7 @@ interface CronResult {
 }
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/cron/seo-refresh' });
   const startTime = Date.now();
 
   // Verify cron secret
@@ -162,7 +164,10 @@ export async function GET(request: NextRequest) {
         await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(`Error processing business ${business.id}:`, errorMsg);
+        requestLogger.error(
+          { businessId: business.id, errorMsg },
+          'Failed to refresh SEO snapshot for business',
+        );
         result.errors.push({
           businessId: business.id,
           error: errorMsg,
@@ -176,7 +181,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('GET /api/cron/seo-refresh error:', errorMsg);
+    requestLogger.error({ errorMsg }, 'SEO refresh cron failed');
 
     return NextResponse.json(
       {

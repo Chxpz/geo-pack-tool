@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getUserSubscription, PLAN_CONFIG } from '@/lib/stripe';
+import { getUserSubscription } from '@/lib/stripe';
 
 /**
  * GET /api/cron/data-retention
@@ -10,6 +11,7 @@ import { getUserSubscription, PLAN_CONFIG } from '@/lib/stripe';
  * Protected by CRON_SECRET environment variable
  */
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/cron/data-retention' });
   // Verify cron secret
   const cronSecret = request.headers.get('authorization')?.replace('Bearer ', '');
   if (cronSecret !== process.env.CRON_SECRET) {
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
       .is('deleted_at', null);
 
     if (businessesError) {
-      console.error('Error fetching businesses:', businessesError);
+      requestLogger.error({ error: businessesError }, 'Failed to fetch businesses for retention run');
       return NextResponse.json(
         { error: 'Failed to fetch businesses' },
         { status: 500 }
@@ -75,7 +77,7 @@ export async function GET(request: NextRequest) {
           .lt('created_at', cutoffISO);
 
         if (mentionsError) {
-          console.error(`Error deleting mentions for user ${userId}:`, mentionsError);
+          requestLogger.error({ error: mentionsError, userId }, 'Failed to delete old ai_mentions');
         } else if (mentionsCount) {
           if (!deletionLog[userId]) deletionLog[userId] = [];
           deletionLog[userId].push({ table: 'ai_mentions', count: mentionsCount });
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
           .lt('created_at', cutoffISO);
 
         if (citationsError) {
-          console.error(`Error deleting citations for user ${userId}:`, citationsError);
+          requestLogger.error({ error: citationsError, userId }, 'Failed to delete old citations');
         } else if (citationsCount) {
           if (!deletionLog[userId]) deletionLog[userId] = [];
           deletionLog[userId].push({ table: 'citations', count: citationsCount });
@@ -103,19 +105,24 @@ export async function GET(request: NextRequest) {
           .lt('created_at', cutoffISO);
 
         if (snapshotsError) {
-          console.error(`Error deleting snapshots for user ${userId}:`, snapshotsError);
+          requestLogger.error({ error: snapshotsError, userId }, 'Failed to delete old SEO snapshots');
         } else if (snapshotsCount) {
           if (!deletionLog[userId]) deletionLog[userId] = [];
           deletionLog[userId].push({ table: 'seo_snapshots', count: snapshotsCount });
         }
 
-        console.log(`[data-retention] User ${userId}: deleted records older than ${cutoffISO}`, {
-          deletions: deletionLog[userId] ?? [],
-          retentionDays,
-          plan: subscription.plan,
-        });
+        requestLogger.info(
+          {
+            userId,
+            cutoffISO,
+            deletions: deletionLog[userId] ?? [],
+            retentionDays,
+            plan: subscription.plan,
+          },
+          'Completed data retention cleanup for user',
+        );
       } catch (err) {
-        console.error(`Error processing user ${userId}:`, err);
+        requestLogger.error({ err, userId }, 'Failed to process data retention for user');
       }
     }
 
@@ -126,7 +133,10 @@ export async function GET(request: NextRequest) {
       0
     );
 
-    console.log(`[data-retention] Complete: ${totalUsers} users, ${totalRecords} records deleted`);
+    requestLogger.info(
+      { totalUsers, totalRecords, usersProcessed: uniqueUserIds.length },
+      'Data retention cron completed',
+    );
 
     return NextResponse.json({
       success: true,
@@ -140,7 +150,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[data-retention] Fatal error:', message);
+    requestLogger.error({ err: error, message }, 'Data retention cron failed');
     return NextResponse.json(
       { error: 'Cron job failed', details: message },
       { status: 500 }

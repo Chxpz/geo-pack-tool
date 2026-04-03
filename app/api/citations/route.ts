@@ -6,9 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/citations' });
+
   try {
     const session = await auth();
 
@@ -126,7 +129,10 @@ export async function GET(request: NextRequest) {
     const { data: citations, error: citationError, count } = await citationsQuery;
 
     if (citationError) {
-      console.error('Error fetching citations:', citationError);
+      requestLogger.error(
+        { error: citationError, userId: session.user.id, businessId },
+        'Failed to fetch citations',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch citations' },
         { status: 500 },
@@ -172,7 +178,7 @@ export async function GET(request: NextRequest) {
       summary,
     });
   } catch (error) {
-    console.error('GET /api/citations error:', error);
+    requestLogger.error({ err: error }, 'Citations request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

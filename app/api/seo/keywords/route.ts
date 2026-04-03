@@ -7,11 +7,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 type SortBy = 'position' | 'volume' | 'traffic_pct' | 'kd';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/seo/keywords' });
+
   try {
     const session = await auth();
 
@@ -70,7 +73,10 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (snapshotError) {
-      console.error('Error fetching snapshot:', snapshotError);
+      requestLogger.error(
+        { error: snapshotError, userId: session.user.id, businessId },
+        'Failed to fetch latest SEO snapshot',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch snapshot' },
         { status: 500 },
@@ -148,7 +154,7 @@ export async function GET(request: NextRequest) {
       ai_overview_only: aiOverviewOnly,
     });
   } catch (error) {
-    console.error('GET /api/seo/keywords error:', error);
+    requestLogger.error({ err: error }, 'SEO keywords request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

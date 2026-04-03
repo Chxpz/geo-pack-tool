@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
   parseSearchPromptsCSV,
@@ -11,6 +12,8 @@ import {
 } from '@/lib/otterly-import';
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/admin/import' });
+
   try {
     const session = await auth();
 
@@ -91,7 +94,10 @@ export async function POST(request: NextRequest) {
         rowCount = result.validRows;
 
         if (result.invalidRows > 0) {
-          console.warn(`Invalid rows: ${result.invalidRows}`, result.errors);
+          requestLogger.warn(
+            { invalidRows: result.invalidRows, errors: result.errors, businessId },
+            'Import contains invalid rows',
+          );
         }
 
         if (result.rows.length > 0) {
@@ -235,14 +241,17 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', dataImport.id);
 
-      console.error('Import processing error:', error);
+      requestLogger.error(
+        { err: error, businessId, importType, importId: dataImport.id, userId: session.user.id },
+        'Import processing failed',
+      );
       return NextResponse.json(
         { error: `Import processing failed: ${errorMessage}` },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error('POST /api/admin/import error:', error);
+    requestLogger.error({ err: error }, 'Admin import request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 const taskMap = {
   lint: ['run', 'lint'],
   typecheck: ['run', 'typecheck'],
+  test: ['run', 'test'],
   build: ['run', 'build'],
 };
 

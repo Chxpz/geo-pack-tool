@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserSubscription, isWithinBusinessLimit } from '@/lib/stripe';
 import { businessCreateSchema } from '@/lib/schemas/business';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/businesses' });
+
   try {
     const session = await auth();
 
@@ -31,7 +34,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching businesses:', error);
+      requestLogger.error({ error, userId: session.user.id }, 'Failed to fetch businesses');
       return NextResponse.json(
         { error: 'Failed to fetch businesses' },
         { status: 500 }
@@ -40,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error('GET /api/businesses error:', error);
+    requestLogger.error({ err: error }, 'List-businesses request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -49,6 +52,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/businesses' });
+
   try {
     const session = await auth();
 
@@ -118,7 +123,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error creating business:', error);
+      requestLogger.error({ error, userId: session.user.id }, 'Failed to create business');
       return NextResponse.json(
         { error: 'Failed to create business' },
         { status: 500 }
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error('POST /api/businesses error:', error);
+    requestLogger.error({ err: error }, 'Create-business request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

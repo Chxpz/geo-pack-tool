@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl_abc123",
+  "object": "chat.completion",
+  "created": 1743686400,
+  "model": "gpt-4o-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"business_mentioned\":true,\"position\":2,\"sentiment\":\"positive\",\"competitors\":[{\"name\":\"Beta Dental\",\"position\":1,\"sentiment\":\"positive\"}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 124,
+    "completion_tokens": 43,
+    "total_tokens": 167
+  }
+}

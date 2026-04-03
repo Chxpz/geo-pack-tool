@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserSubscription } from '@/lib/stripe';
 import { z } from 'zod';
@@ -11,6 +12,8 @@ const queryCreateSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/queries' });
+
   try {
     const session = await auth();
 
@@ -100,7 +103,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertErr) {
-      console.error('[queries] Insert error:', insertErr);
+      requestLogger.error(
+        { error: insertErr, userId: session.user.id, businessId: validatedData.business_id },
+        'Failed to create tracked query',
+      );
       return NextResponse.json(
         { error: 'Failed to create query' },
         { status: 500 }
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(newQuery, { status: 201 });
   } catch (error) {
-    console.error('[queries POST] Error:', error);
+    requestLogger.error({ err: error }, 'Create-query request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -118,6 +124,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/queries' });
+
   try {
     const session = await auth();
 
@@ -172,7 +180,10 @@ export async function GET(request: NextRequest) {
     const { data: queries, error: queriesErr } = await query;
 
     if (queriesErr) {
-      console.error('[queries GET] Query error:', queriesErr);
+      requestLogger.error(
+        { error: queriesErr, userId: session.user.id, businessId: business_id },
+        'Failed to fetch tracked queries',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch queries' },
         { status: 500 }
@@ -181,7 +192,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: queries ?? [] });
   } catch (error) {
-    console.error('[queries GET] Error:', error);
+    requestLogger.error({ err: error }, 'List-queries request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -190,6 +201,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/queries' });
+
   try {
     const session = await auth();
 
@@ -245,7 +258,10 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (updateErr) {
-      console.error('[queries PATCH] Update error:', updateErr);
+      requestLogger.error(
+        { error: updateErr, userId: session.user.id, queryId: query_id },
+        'Failed to update tracked query',
+      );
       return NextResponse.json(
         { error: 'Failed to update query' },
         { status: 500 }
@@ -254,7 +270,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error('[queries PATCH] Error:', error);
+    requestLogger.error({ err: error }, 'Update-query request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

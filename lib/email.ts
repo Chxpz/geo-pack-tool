@@ -104,7 +104,8 @@ function baseLayout(title: string, body: string): string {
           <td style="padding:20px 32px;border-top:1px solid #f3f4f6;">
             <p style="margin:0;font-size:12px;color:#9ca3af;">
               You're receiving this because you have an AgenticRev account.<br/>
-              <a href="${APP_URL}/dashboard" style="color:#6b7280;text-decoration:underline;">Visit dashboard</a>
+              Manage notification preferences or unsubscribe from non-essential emails in your
+              <a href="${APP_URL}/dashboard" style="color:#6b7280;text-decoration:underline;">dashboard settings</a>.
             </p>
           </td>
         </tr>

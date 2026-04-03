@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchDashboardStats } from '@/lib/stats';
 import type { DashboardStats } from '@/lib/types';
@@ -13,6 +14,8 @@ const VALID_REPORT_TYPES: ReportType[] = [
 ];
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/reports/generate' });
+
   try {
     const session = await auth();
 
@@ -64,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, report });
   } catch (error) {
-    console.error('Report generation error:', error);
+    requestLogger.error({ err: error }, 'Report generation failed');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

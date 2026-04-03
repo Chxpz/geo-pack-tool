@@ -79,13 +79,6 @@ This file documents the live API surface in `app/api/`.
 | `POST /api/agent/deep-research` | Submit deep research job |
 | `GET /api/agent/deep-research/[id]` | Poll deep research result |
 
-### Legacy but still present
-
-| Method/Path | Purpose |
-| --- | --- |
-| `GET /api/stores` | List legacy store records |
-| `DELETE /api/stores/[id]` | Disconnect legacy store record |
-
 ## Admin Routes
 
 | Method/Path | Purpose |

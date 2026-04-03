@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
-import { supabaseAdmin } from '@/lib/supabase';
 import { z } from 'zod';
-import { generateAndStoreToken } from '@/lib/tokens';
 import { sendVerificationEmail } from '@/lib/email';
+import { createRequestLogger, getClientIp } from '@/lib/request-context';
+import { authRateLimiter, buildRateLimitKey, createRateLimitHeaders } from '@/lib/rate-limit';
 import { PLAN_CONFIG } from '@/lib/stripe';
+import { generateAndStoreToken } from '@/lib/tokens';
+import { supabaseAdmin } from '@/lib/supabase';
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -14,11 +16,27 @@ const signupSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const requestLogger = createRequestLogger(request, { route: '/api/auth/signup' });
+
   try {
     if (!supabaseAdmin) {
       return NextResponse.json(
         { error: 'Database not configured' },
         { status: 503 }
+      );
+    }
+
+    authRateLimiter.cleanup();
+    const rateLimit = authRateLimiter.check(
+      buildRateLimitKey('auth:signup', getClientIp(request) ?? 'unknown'),
+    );
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again shortly.' },
+        {
+          status: 429,
+          headers: createRateLimitHeaders(rateLimit),
+        },
       );
     }
 
@@ -34,12 +52,13 @@ export async function POST(request: Request) {
     }
 
     const { email, password, fullName, companyName } = validation.data;
+    const normalizedEmail = email.toLowerCase();
 
     // Check if user already exists
     const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .single();
 
     if (existingUser) {
@@ -56,7 +75,7 @@ export async function POST(request: Request) {
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .insert({
-        email,
+        email: normalizedEmail,
         password_hash: passwordHash,
         full_name: fullName,
         company_name: companyName,
@@ -67,7 +86,7 @@ export async function POST(request: Request) {
       .single();
 
     if (userError) {
-      console.error('User creation error:', userError);
+      requestLogger.error({ error: userError, email: normalizedEmail }, 'User creation failed');
       return NextResponse.json(
         { error: 'Failed to create account' },
         { status: 500 }
@@ -97,7 +116,10 @@ export async function POST(request: Request) {
       });
 
     if (subError) {
-      console.error('Subscription creation error:', subError);
+      requestLogger.error(
+        { error: subError, userId: user.id, email: normalizedEmail },
+        'Free subscription creation failed during signup',
+      );
       // Don't fail signup if subscription creation fails
     }
 
@@ -120,7 +142,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Signup error:', error);
+    requestLogger.error({ err: error }, 'Signup request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

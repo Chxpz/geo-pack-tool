@@ -380,6 +380,10 @@ export async function generateDiffSummary(
   };
 }
 
+import { withLogContext } from '@/lib/logger';
+
+const otterlyImportLogger = withLogContext({ scope: 'otterly-import' });
+
 /**
  * Create operator task for onboarding
  */
@@ -418,7 +422,10 @@ export async function createOnboardingTask(
     .single();
 
   if (error) {
-    console.error('Error creating onboarding task:', error);
+    otterlyImportLogger.error(
+      { error, businessId, userId, planId },
+      'Error creating onboarding task',
+    );
     return null;
   }
 

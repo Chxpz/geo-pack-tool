@@ -4,6 +4,8 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { withLogContext } from '@/lib/logger';
+import { retry } from '@/lib/retry';
 import {
   createScanRun,
   markScanRunCompleted,
@@ -63,6 +65,51 @@ export interface ScanRunProgress extends ScanRunResult {
   totalQueries: number;
 }
 
+const scannerLogger = withLogContext({ scope: 'scanner' });
+
+class ProviderRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'ProviderRequestError';
+  }
+}
+
+async function fetchWithRetry(
+  provider: PlatformSlug,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  return retry(
+    async () => {
+      const response = await fetch(url, init);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ProviderRequestError(
+          `${provider} error ${response.status}: ${errorText}`,
+          response.status,
+        );
+      }
+
+      return response;
+    },
+    {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      maxDelayMs: 30_000,
+      onRetry: async (error, attempt, delayMs) => {
+        scannerLogger.warn(
+          { err: error, provider, attempt, delayMs },
+          'Retrying provider request',
+        );
+      },
+    },
+  );
+}
+
 // ─── Response Parsing ────────────────────────────────────────────────────────
 
 function extractPosition(text: string, businessName: string): number | undefined {
@@ -101,7 +148,7 @@ async function scanOpenAI(query: string): Promise<MentionResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY not set');
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetchWithRetry('chatgpt', 'https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -120,11 +167,6 @@ async function scanOpenAI(query: string): Promise<MentionResult> {
       max_tokens: 500,
     }),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenAI error ${res.status}: ${err}`);
-  }
 
   const data = await res.json() as {
     choices: Array<{ message: { content: string } }>;
@@ -155,7 +197,7 @@ async function scanPerplexity(query: string): Promise<MentionResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error('PERPLEXITY_API_KEY not set');
 
-  const res = await fetch('https://api.perplexity.ai/chat/completions', {
+  const res = await fetchWithRetry('perplexity', 'https://api.perplexity.ai/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -175,11 +217,6 @@ async function scanPerplexity(query: string): Promise<MentionResult> {
       return_citations: true,
     }),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Perplexity error ${res.status}: ${err}`);
-  }
 
   const data = await res.json() as {
     choices: Array<{ message: { content: string } }>;
@@ -213,7 +250,8 @@ async function scanGemini(query: string): Promise<MentionResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
+    'gemini',
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -235,11 +273,6 @@ async function scanGemini(query: string): Promise<MentionResult> {
       }),
     },
   );
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini error ${res.status}: ${err}`);
-  }
 
   const data = await res.json() as {
     candidates?: Array<{
@@ -272,7 +305,7 @@ async function scanClaude(query: string): Promise<MentionResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetchWithRetry('claude', 'https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'x-api-key': apiKey,
@@ -287,11 +320,6 @@ async function scanClaude(query: string): Promise<MentionResult> {
       messages: [{ role: 'user', content: query }],
     }),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Claude error ${res.status}: ${err}`);
-  }
 
   const data = await res.json() as {
     content?: Array<{ type: string; text?: string }>;
@@ -443,7 +471,16 @@ async function scanBusinessOnPlatform(
   try {
     result = await callPlatform(platform.slug as PlatformSlug, query.query_text);
   } catch (err) {
-    console.error(`[scanner] ${platform.slug} error for business ${business.id} query ${query.id}:`, err);
+    scannerLogger.error(
+      {
+        err,
+        platform: platform.slug,
+        businessId: business.id,
+        queryId: query.id,
+        userId: business.user_id,
+      },
+      'Provider scan failed',
+    );
     return { mentions: 0, errors: 1 };
   }
 
@@ -472,7 +509,16 @@ async function scanBusinessOnPlatform(
   });
 
   if (error) {
-    console.error(`[scanner] DB insert error for business ${business.id}:`, error.message);
+    scannerLogger.error(
+      {
+        error,
+        businessId: business.id,
+        queryId: query.id,
+        platform: platform.slug,
+        userId: business.user_id,
+      },
+      'Failed to insert scan result',
+    );
     return { mentions: 0, errors: 1 };
   }
 
@@ -572,7 +618,10 @@ export async function runBusinessScanner(
     .eq('business_id', businessId);
 
   if (competitorErr) {
-    console.warn(`[scanner] Failed to load competitors for business ${businessId}:`, competitorErr.message);
+    scannerLogger.warn(
+      { error: competitorErr, businessId },
+      'Failed to load competitors for business scan',
+    );
   }
 
   const competitorList = (competitors as ScanCompetitor[]) ?? [];
@@ -594,7 +643,15 @@ export async function runBusinessScanner(
         mentions += platformResult.mentions;
         errors += platformResult.errors;
       } catch (err) {
-        console.error(`[scanner] Error scanning business ${business.id} on platform ${platform.slug}:`, err);
+        scannerLogger.error(
+          {
+            err,
+            businessId: business.id,
+            platform: platform.slug,
+            userId: business.user_id,
+          },
+          'Unexpected platform scan failure',
+        );
         errors++;
       }
       // Pause between platforms to respect rate limits

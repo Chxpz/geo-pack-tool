@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 /**
  * GET /api/reports/list
  * List all reports for authenticated user
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const requestLogger = createRequestLogger(request, { route: '/api/reports/list' });
+
   try {
     const session = await auth();
 
@@ -30,7 +33,7 @@ export async function GET() {
       .limit(50);
 
     if (error) {
-      console.error('Error fetching reports:', error);
+      requestLogger.error({ error, userId: session.user.id }, 'Failed to fetch reports');
       return NextResponse.json(
         { error: 'Failed to fetch reports' },
         { status: 500 },
@@ -42,7 +45,7 @@ export async function GET() {
       reports: reports || [],
     });
   } catch (error) {
-    console.error('List reports error:', error);
+    requestLogger.error({ err: error }, 'List-reports request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

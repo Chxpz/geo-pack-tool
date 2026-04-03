@@ -7,10 +7,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { pullFullSeoSnapshot } from '@/lib/semrush';
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/seo/snapshot' });
+
   try {
     const session = await auth();
 
@@ -125,7 +128,10 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('Error storing SEO snapshot:', insertError);
+      requestLogger.error(
+        { error: insertError, userId: session.user.id, businessId: business_id },
+        'Failed to store SEO snapshot',
+      );
       return NextResponse.json(
         { error: 'Failed to store snapshot' },
         { status: 500 },
@@ -141,7 +147,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    console.error('POST /api/seo/snapshot error:', error);
+    requestLogger.error({ err: error }, 'SEO snapshot request failed');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 },

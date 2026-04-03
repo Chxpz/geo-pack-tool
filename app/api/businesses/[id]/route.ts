@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { businessUpdateSchema } from '@/lib/schemas/business';
 
@@ -30,6 +31,8 @@ export async function GET(
   request: NextRequest,
   { params }: RouteParams
 ) {
+  const requestLogger = createRequestLogger(request, { route: '/api/businesses/[id]' });
+
   try {
     const session = await auth();
 
@@ -123,7 +126,7 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('GET /api/businesses/[id] error:', error);
+    requestLogger.error({ err: error }, 'Get-business request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -135,6 +138,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: RouteParams
 ) {
+  const requestLogger = createRequestLogger(request, { route: '/api/businesses/[id]' });
+
   try {
     const session = await auth();
 
@@ -180,7 +185,7 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error('Error updating business:', error);
+      requestLogger.error({ error, userId: session.user.id, businessId: id }, 'Failed to update business');
       return NextResponse.json(
         { error: 'Failed to update business' },
         { status: 500 }
@@ -189,7 +194,7 @@ export async function PATCH(
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('PATCH /api/businesses/[id] error:', error);
+    requestLogger.error({ err: error }, 'Update-business request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -201,6 +206,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: RouteParams
 ) {
+  const requestLogger = createRequestLogger(request, { route: '/api/businesses/[id]' });
+
   try {
     const session = await auth();
 
@@ -235,7 +242,10 @@ export async function DELETE(
       .eq('id', id);
 
     if (softDeleteError) {
-      console.error('Error deleting business:', softDeleteError);
+      requestLogger.error(
+        { error: softDeleteError, userId: session.user.id, businessId: id },
+        'Failed to soft-delete business',
+      );
       return NextResponse.json(
         { error: 'Failed to delete business' },
         { status: 500 }
@@ -248,7 +258,10 @@ export async function DELETE(
       .eq('business_id', id);
 
     if (deactivateError) {
-      console.error('Error deactivating queries:', deactivateError);
+      requestLogger.error(
+        { error: deactivateError, userId: session.user.id, businessId: id },
+        'Failed to deactivate business queries after delete',
+      );
     }
 
     return NextResponse.json(
@@ -256,7 +269,7 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error) {
-    console.error('DELETE /api/businesses/[id] error:', error);
+    requestLogger.error({ err: error }, 'Delete-business request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

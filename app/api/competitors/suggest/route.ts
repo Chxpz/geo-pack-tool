@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 interface SuggestionResponse {
@@ -27,6 +28,8 @@ async function verifyBusinessOwnership(
 }
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/competitors/suggest' });
+
   try {
     const session = await auth();
 
@@ -109,7 +112,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!openaiResponse.ok) {
-      console.error('OpenAI API error:', openaiResponse.statusText);
+      requestLogger.error(
+        {
+          status: openaiResponse.status,
+          statusText: openaiResponse.statusText,
+          userId: session.user.id,
+          businessId: business_id,
+        },
+        'Competitor suggestion request failed',
+      );
       return NextResponse.json(
         { error: 'Failed to generate suggestions' },
         { status: 500 }
@@ -139,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ suggestions });
   } catch (error) {
-    console.error('POST /api/competitors/suggest error:', error);
+    requestLogger.error({ err: error }, 'Competitor-suggest request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

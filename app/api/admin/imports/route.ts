@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/admin/imports' });
+
   try {
     const session = await auth();
 
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
       .limit(limit);
 
     if (error) {
-      console.error('Error fetching imports:', error);
+      requestLogger.error({ error, userId: session.user.id }, 'Failed to fetch imports');
       return NextResponse.json(
         { error: 'Failed to fetch imports' },
         { status: 500 }
@@ -68,7 +71,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(imports || []);
   } catch (error) {
-    console.error('GET /api/admin/imports error:', error);
+    requestLogger.error({ err: error }, 'Admin imports request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { generateQueries, type QueryGenerationInput } from '@/lib/query-generator';
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/queries/generate' });
+
   try {
     const session = await auth();
 
@@ -71,7 +74,10 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (insertErr) {
-      console.error('[queries/generate] Insert error:', insertErr);
+      requestLogger.error(
+        { error: insertErr, userId: session.user.id, businessId: business_id },
+        'Failed to insert generated queries',
+      );
       return NextResponse.json(
         { error: 'Failed to generate and insert queries' },
         { status: 500 }
@@ -84,7 +90,7 @@ export async function POST(request: NextRequest) {
       queryIds: (insertedQueries ?? []).map((query) => query.id),
     });
   } catch (error) {
-    console.error('[queries/generate] Error:', error);
+    requestLogger.error({ err: error }, 'Generate-queries request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

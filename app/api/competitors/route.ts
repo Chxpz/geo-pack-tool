@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserSubscription } from '@/lib/stripe';
 import { competitorCreateSchema } from '@/lib/schemas/business';
@@ -22,6 +23,8 @@ async function verifyBusinessOwnership(
 }
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/competitors' });
+
   try {
     const session = await auth();
 
@@ -70,7 +73,10 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching competitors:', error);
+      requestLogger.error(
+        { error, userId: session.user.id, businessId },
+        'Failed to fetch competitors',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch competitors' },
         { status: 500 }
@@ -79,7 +85,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error('GET /api/competitors error:', error);
+    requestLogger.error({ err: error }, 'List-competitors request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -88,6 +94,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/competitors' });
+
   try {
     const session = await auth();
 
@@ -169,7 +177,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error creating competitor:', error);
+      requestLogger.error(
+        {
+          error,
+          userId: session.user.id,
+          businessId: validationResult.data.business_id,
+        },
+        'Failed to create competitor',
+      );
       return NextResponse.json(
         { error: 'Failed to create competitor' },
         { status: 500 }
@@ -178,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error('POST /api/competitors error:', error);
+    requestLogger.error({ err: error }, 'Create-competitor request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -187,6 +202,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/competitors' });
+
   try {
     const session = await auth();
 
@@ -247,7 +264,10 @@ export async function DELETE(request: NextRequest) {
       .eq('id', competitorId);
 
     if (deleteError) {
-      console.error('Error deleting competitor:', deleteError);
+      requestLogger.error(
+        { error: deleteError, userId: session.user.id, competitorId },
+        'Failed to delete competitor',
+      );
       return NextResponse.json(
         { error: 'Failed to delete competitor' },
         { status: 500 }
@@ -259,7 +279,7 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('DELETE /api/competitors error:', error);
+    requestLogger.error({ err: error }, 'Delete-competitor request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

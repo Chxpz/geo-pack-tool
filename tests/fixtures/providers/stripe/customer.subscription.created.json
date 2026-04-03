@@ -1,0 +1,23 @@
+{
+  "id": "evt_subscription_created",
+  "object": "event",
+  "type": "customer.subscription.created",
+  "data": {
+    "object": {
+      "id": "sub_123",
+      "object": "subscription",
+      "customer": "cus_123",
+      "status": "active",
+      "billing_cycle_anchor": 1743686400,
+      "items": {
+        "data": [
+          {
+            "price": {
+              "id": "price_pro"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

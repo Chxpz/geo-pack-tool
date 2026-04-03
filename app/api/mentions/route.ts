@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/mentions' });
+
   try {
     const session = await auth();
 
@@ -99,7 +102,10 @@ export async function GET(request: NextRequest) {
     const { data: mentions, error: mentionsErr, count } = await query.range(offset, offset + limit - 1);
 
     if (mentionsErr) {
-      console.error('[mentions] Query error:', mentionsErr);
+      requestLogger.error(
+        { error: mentionsErr, userId: session.user.id, businessId: business_id },
+        'Failed to fetch mentions',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch mentions' },
         { status: 500 }
@@ -113,7 +119,7 @@ export async function GET(request: NextRequest) {
       offset,
     });
   } catch (error) {
-    console.error('[mentions] Error:', error);
+    requestLogger.error({ err: error }, 'Mentions request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

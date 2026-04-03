@@ -1,0 +1,34 @@
+{
+  "id": "pplx_12345",
+  "model": "sonar-small-online",
+  "created": 1743686400,
+  "usage": {
+    "prompt_tokens": 131,
+    "completion_tokens": 52,
+    "total_tokens": 183
+  },
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"business_mentioned\":true,\"position\":1,\"sentiment\":\"positive\",\"competitors\":[{\"name\":\"City Dental Group\",\"position\":2,\"sentiment\":\"neutral\"}]}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "citations": [
+    "https://example.com/best-dentists",
+    "https://maps.example.com/city-dental-group"
+  ],
+  "related_questions": [
+    "Who is the best emergency dentist in Austin?"
+  ],
+  "search_results": [
+    {
+      "title": "Top Dentists in Austin",
+      "url": "https://example.com/best-dentists",
+      "date": "2026-03-22"
+    }
+  ]
+}

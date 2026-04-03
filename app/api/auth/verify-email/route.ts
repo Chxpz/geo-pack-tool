@@ -1,11 +1,29 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { createRequestLogger, getClientIp } from '@/lib/request-context';
+import { authRateLimiter, buildRateLimitKey, createRateLimitHeaders } from '@/lib/rate-limit';
 import { verifyAndConsumeToken } from '@/lib/tokens';
 
 export async function GET(request: Request) {
+  const requestLogger = createRequestLogger(request, { route: '/api/auth/verify-email' });
+
   try {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 503 });
+    }
+
+    authRateLimiter.cleanup();
+    const rateLimit = authRateLimiter.check(
+      buildRateLimitKey('auth:verify-email', getClientIp(request) ?? 'unknown'),
+    );
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again shortly.' },
+        {
+          status: 429,
+          headers: createRateLimitHeaders(rateLimit),
+        },
+      );
     }
 
     const { searchParams } = new URL(request.url);
@@ -33,11 +51,16 @@ export async function GET(request: Request) {
       .eq('id', result.userId);
 
     if (error) {
+      requestLogger.error(
+        { error, userId: result.userId },
+        'Failed to update verified email state',
+      );
       return NextResponse.json({ error: 'Failed to verify email' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    requestLogger.error({ err: error }, 'Verify-email request failed');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

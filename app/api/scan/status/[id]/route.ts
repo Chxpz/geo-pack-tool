@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestLogger = createRequestLogger(request, { route: '/api/scan/status/[id]' });
+
   try {
     const session = await auth();
 
@@ -82,7 +85,7 @@ export async function GET(
       updated_at: scanRun.updated_at,
     });
   } catch (error) {
-    console.error('[scan/status] Error:', error);
+    requestLogger.error({ err: error }, 'Scan status request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

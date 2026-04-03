@@ -1,5 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserSubscription } from '@/lib/stripe';
 import { runBusinessScanner } from '@/lib/scanner';
@@ -13,6 +14,8 @@ import {
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/scan/trigger' });
+
   try {
     const session = await auth();
 
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest) {
       { status: 202 },
     );
   } catch (error) {
-    console.error('[scan/trigger] Error:', error);
+    requestLogger.error({ err: error }, 'Scan trigger request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

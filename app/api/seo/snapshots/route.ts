@@ -6,9 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
+import { createRequestLogger } from '@/lib/request-context';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
+  const requestLogger = createRequestLogger(request, { route: '/api/seo/snapshots' });
+
   try {
     const session = await auth();
 
@@ -79,7 +82,10 @@ export async function GET(request: NextRequest) {
     const { data: snapshots, error: snapshotError, count } = await snapshotsQuery;
 
     if (snapshotError) {
-      console.error('Error fetching snapshots:', snapshotError);
+      requestLogger.error(
+        { error: snapshotError, userId: session.user.id, businessId },
+        'Failed to fetch SEO snapshots',
+      );
       return NextResponse.json(
         { error: 'Failed to fetch snapshots' },
         { status: 500 },
@@ -96,7 +102,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('GET /api/seo/snapshots error:', error);
+    requestLogger.error({ err: error }, 'SEO snapshots request failed');
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 },

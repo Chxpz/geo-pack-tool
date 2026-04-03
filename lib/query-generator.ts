@@ -1,3 +1,5 @@
+import { withLogContext } from '@/lib/logger';
+
 export interface QueryGenerationInput {
   businessName: string;
   businessType: string;
@@ -67,6 +69,8 @@ const BUSINESS_TYPE_TEMPLATES: Record<string, string[]> = {
     'barber near [city]',
   ],
 };
+
+const queryGeneratorLogger = withLogContext({ scope: 'query-generator' });
 
 function buildPrompt(input: QueryGenerationInput, count: number): string {
   const location = input.city ? `${input.city}${input.state ? ', ' + input.state : ''}` : input.serviceAreas.join(', ');
@@ -166,7 +170,9 @@ export async function generateQueries(
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.warn('OPENAI_API_KEY not set, falling back to template-based generation');
+      queryGeneratorLogger.warn(
+        'OPENAI_API_KEY not set, falling back to template-based generation',
+      );
       return buildTemplateFallback(input, count);
     }
 
@@ -191,9 +197,13 @@ export async function generateQueries(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
-        `OpenAI API error: ${response.status} ${response.statusText}`,
-        errorText
+      queryGeneratorLogger.error(
+        {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+        },
+        'OpenAI query generation request failed',
       );
       return buildTemplateFallback(input, count);
     }
@@ -201,7 +211,7 @@ export async function generateQueries(
     const data = await response.json();
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Unexpected OpenAI response format', data);
+      queryGeneratorLogger.error({ data }, 'Unexpected OpenAI response format');
       return buildTemplateFallback(input, count);
     }
 
@@ -219,14 +229,14 @@ export async function generateQueries(
           typeof q.intent_category === 'string'
       )
     ) {
-      console.error('Invalid query format in response', queries);
+      queryGeneratorLogger.error({ queries }, 'Invalid query format in response');
       return buildTemplateFallback(input, count);
     }
 
     // Return up to count queries
     return queries.slice(0, count);
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
+    queryGeneratorLogger.error({ err: error }, 'Query generation failed');
     return buildTemplateFallback(input, count);
   }
 }

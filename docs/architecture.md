@@ -96,8 +96,6 @@ Important current domains represented in the schema and code:
 - `deep_research_results`
 - `auth_tokens`
 
-Legacy store endpoints still query `stores`; that table remains part of the codebase even though it is not part of the primary product flow.
-
 ## External Dependencies
 
 Current runtime integrations referenced by active code:
@@ -125,4 +123,3 @@ Each protected cron route expects `Authorization: Bearer ${CRON_SECRET}`.
 ## Legacy and Non-Primary Surfaces
 
 - `deprecated/` contains archived truth-engine-era code.
-- `/api/stores` and `/api/stores/[id]` are still live, but they are not linked from current onboarding or sidebar navigation.

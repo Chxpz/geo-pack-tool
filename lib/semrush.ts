@@ -18,6 +18,8 @@
  */
 
 import { z } from 'zod';
+import { withLogContext } from '@/lib/logger';
+import { retry } from '@/lib/retry';
 import {
   domainOverviewSchema,
   domainOrganicRowSchema,
@@ -35,6 +37,17 @@ import {
 
 const SEMRUSH_API_BASE = 'https://api.semrush.com';
 const SEMRUSH_API_KEY = process.env.SEMRUSH_API_KEY;
+const semrushLogger = withLogContext({ scope: 'semrush' });
+
+class SemrushApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'SemrushApiError';
+  }
+}
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 
@@ -171,22 +184,35 @@ async function makeSemrushRequest<T>(
 
     const url = `${SEMRUSH_API_BASE}?${params.toString()}`;
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    const response = await retry(
+      async () => {
+        const result = await fetch(url, {
+          method: 'GET',
+          headers: { 'Content-Type': 'text/plain' },
+        });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(
-        `SEMrush API error [${options.action}]:`,
-        response.status,
-        errorText,
-      );
-      throw new Error(
-        `SEMrush API error: ${response.status} ${errorText.slice(0, 100)}`,
-      );
-    }
+        if (!result.ok) {
+          const errorText = await result.text();
+          throw new SemrushApiError(
+            `SEMrush API error: ${result.status} ${errorText.slice(0, 100)}`,
+            result.status,
+          );
+        }
+
+        return result;
+      },
+      {
+        maxRetries: 3,
+        baseDelayMs: 1000,
+        maxDelayMs: 30_000,
+        onRetry: async (error, attempt, delayMs) => {
+          semrushLogger.warn(
+            { err: error, action: options.action, attempt, delayMs },
+            'Retrying SEMrush API request',
+          );
+        },
+      },
+    );
 
     const data = await response.text();
     return parser(data);
@@ -352,9 +378,9 @@ export async function getKeywordOverview(
 // ─── Endpoint 5: Position Tracking (placeholder, project-based) ───────────────
 
 export async function getPositionTracking(projectId: string): Promise<unknown> {
-  console.warn(
-    'TODO: Position Tracking requires SEMrush project setup in dashboard.',
+  semrushLogger.warn(
     { projectId },
+    'Position Tracking requires SEMrush project setup in dashboard',
   );
   return {
     placeholder: true,
@@ -366,9 +392,10 @@ export async function getPositionTracking(projectId: string): Promise<unknown> {
 // ─── Endpoint 6: Site Audit (placeholder, project-based) ─────────────────────
 
 export async function getSiteAudit(projectId: string): Promise<unknown> {
-  console.warn('TODO: Site Audit requires SEMrush project setup in dashboard.', {
-    projectId,
-  });
+  semrushLogger.warn(
+    { projectId },
+    'Site Audit requires SEMrush project setup in dashboard',
+  );
   return {
     placeholder: true,
     message: 'Site Audit requires project configuration in SEMrush dashboard',
@@ -496,7 +523,7 @@ export async function getMapRanking(
 // ─── Endpoint 9: Listing Management ───────────────────────────────────────────
 
 export async function getListingLocations(): Promise<unknown> {
-  console.warn('TODO: Listing Management integration');
+  semrushLogger.warn('Listing Management requires GMB connector setup');
   return {
     placeholder: true,
     message: 'Listing Management requires GMB connector setup',
@@ -565,14 +592,10 @@ export async function pullFullSeoSnapshot(
       }
     }
   } catch (error) {
-    console.error('Error pulling full SEO snapshot:', {
-      domain,
-      depth,
-      error:
-        error instanceof Error
-          ? error.message
-          : JSON.stringify(error),
-    });
+    semrushLogger.error(
+      { err: error, domain, depth },
+      'Error pulling full SEO snapshot',
+    );
   }
 
   return result;

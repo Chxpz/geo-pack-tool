@@ -1,0 +1,17 @@
+{
+  "id": "evt_invoice_paid",
+  "object": "event",
+  "type": "invoice.paid",
+  "data": {
+    "object": {
+      "id": "in_123",
+      "object": "invoice",
+      "parent": {
+        "type": "subscription_details",
+        "subscription_details": {
+          "subscription": "sub_123"
+        }
+      }
+    }
+  }
+}
