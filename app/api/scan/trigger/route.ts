@@ -1,8 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getUserSubscription } from '@/lib/stripe';
 import { runBusinessScanner } from '@/lib/scanner';
+import {
+  createScanRun,
+  markScanRunCompleted,
+  markScanRunFailed,
+  updateScanRunProgress,
+} from '@/lib/scan-runs';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +29,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const business_id = body.business_id ?? body.businessId;
-    const query_ids = body.query_ids ?? body.queryIds;
+    const rawQueryIds = body.query_ids ?? body.queryIds;
+    const query_ids = Array.isArray(rawQueryIds)
+      ? rawQueryIds.filter((value): value is string => typeof value === 'string')
+      : [];
 
     if (!business_id) {
       return NextResponse.json(
@@ -52,13 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check scan frequency limit per plan
     const subscription = await getUserSubscription(session.user.id);
-
-    // For now, we allow scans for all plans. In production, you might:
-    // 1. Enforce minimum time between scans based on scanFrequency
-    // 2. Limit daily/weekly scan counts
-    // This is a placeholder for future scan rate limiting
     const planScanFrequency = subscription.scan_frequency;
 
     if (!planScanFrequency) {
@@ -68,13 +73,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Run scan synchronously for MVP
-    const result = await runBusinessScanner(business_id, Array.isArray(query_ids) ? query_ids : undefined);
+    let querySelection = supabaseAdmin
+      .from('tracked_queries')
+      .select('id')
+      .eq('business_id', business_id)
+      .eq('is_active', true);
 
-    return NextResponse.json({
-      success: true,
-      result,
+    if (query_ids.length > 0) {
+      querySelection = querySelection.in('id', query_ids);
+    }
+
+    const { data: requestedQueries, error: requestedQueriesError } = await querySelection;
+
+    if (requestedQueriesError) {
+      return NextResponse.json(
+        { error: 'Failed to load scan queries' },
+        { status: 500 },
+      );
+    }
+
+    const requestedQueryIds = (requestedQueries ?? [])
+      .map((query) => query.id)
+      .filter((value): value is string => typeof value === 'string');
+
+    const scanRun = await createScanRun({
+      businessId: business_id,
+      userId: session.user.id,
+      queryIds: requestedQueryIds,
     });
+
+    after(async () => {
+      try {
+        const result = await runBusinessScanner(
+          business_id,
+          requestedQueryIds,
+          {
+            onProgress: async (progress) => {
+              await updateScanRunProgress(scanRun.id, progress);
+            },
+          },
+        );
+
+        await markScanRunCompleted(scanRun.id, result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Scan failed';
+        await markScanRunFailed(scanRun.id, message);
+      }
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        scan: {
+          id: scanRun.id,
+          status: 'processing',
+          requested_query_count: requestedQueryIds.length,
+          poll_url: `/api/scan/status/${scanRun.id}`,
+        },
+      },
+      { status: 202 },
+    );
   } catch (error) {
     console.error('[scan/trigger] Error:', error);
     return NextResponse.json(

@@ -6,9 +6,8 @@ import { getUserSubscription } from '@/lib/stripe';
 /**
  * POST /api/scanner/trigger
  *
- * Auth-gated manual scan trigger — scans all products belonging to the
- * authenticated user across all 4 AI platforms.
- * Scan limit is capped at the user's plan max_products (or 50 for free).
+ * Auth-gated manual scan trigger for all businesses owned by the
+ * authenticated user.
  */
 export async function POST() {
   const session = await auth();

@@ -31,9 +31,9 @@ export const authOptions: NextAuthConfig = {
           throw new Error('Invalid credentials');
         }
 
-        // Check if user has a password (not OAuth-only)
+        // Check if user has a password
         if (!user.password_hash) {
-          throw new Error('Please sign in with Shopify');
+          throw new Error('Password login is not available for this account');
         }
 
         // Verify password

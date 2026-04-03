@@ -3,6 +3,20 @@ import { auth } from '@/lib/auth-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { TrackedQuery } from '@/lib/types';
 
+interface ScanRunRow {
+  id: string;
+  business_id: string;
+  status: 'processing' | 'completed' | 'failed';
+  requested_query_count: number;
+  scanned_queries: number;
+  mentions_found: number;
+  errors_count: number;
+  error_message?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  businesses?: { business_name: string } | { business_name: string }[] | null;
+}
+
 export default async function ScansPage() {
   const session = await auth();
 
@@ -11,10 +25,10 @@ export default async function ScansPage() {
   }
 
   let queries: TrackedQuery[] = [];
-  let scans: Array<Record<string, unknown>> = [];
+  let scanRuns: ScanRunRow[] = [];
 
   if (supabaseAdmin) {
-    const [queriesResult, scansResult] = await Promise.all([
+    const [queriesResult, scanRunsResult] = await Promise.all([
       supabaseAdmin
         .from('tracked_queries')
         .select('*')
@@ -22,31 +36,44 @@ export default async function ScansPage() {
         .order('created_at', { ascending: false }),
 
       supabaseAdmin
-        .from('ai_mentions')
-        .select('*')
+        .from('scan_runs')
+        .select(
+          `
+          id,
+          business_id,
+          status,
+          requested_query_count,
+          scanned_queries,
+          mentions_found,
+          errors_count,
+          error_message,
+          started_at,
+          completed_at,
+          businesses(business_name)
+          `
+        )
         .eq('user_id', session.user.id)
-        .order('scanned_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(50),
     ]);
 
     queries = (queriesResult.data ?? []) as TrackedQuery[];
-    scans = (scansResult.data ?? []) as Array<Record<string, unknown>>;
+    scanRuns = (scanRunsResult.data ?? []) as ScanRunRow[];
   }
 
-  const groupedScans = scans.reduce(
-    (acc, scan) => {
-      const scannedAt = scan.scanned_at;
-      if (typeof scannedAt !== 'string') {
+  const groupedScans = scanRuns.reduce(
+    (acc, scanRun) => {
+      if (typeof scanRun.started_at !== 'string') {
         return acc;
       }
 
-      const date = new Date(scannedAt).toLocaleDateString();
-      const bucket = (acc[date] ?? []) as Array<Record<string, unknown>>;
-      bucket.push(scan);
+      const date = new Date(scanRun.started_at).toLocaleDateString();
+      const bucket = acc[date] ?? [];
+      bucket.push(scanRun);
       acc[date] = bucket;
       return acc;
     },
-    {} as Record<string, Array<Record<string, unknown>>>
+    {} as Record<string, ScanRunRow[]>
   );
 
   const queryTypeLabels: Record<string, string> = {
@@ -158,55 +185,78 @@ export default async function ScansPage() {
                 <div key={date}>
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">{date}</h3>
                   <div className="space-y-3">
-                    {(dayScan as Array<Record<string, unknown>>).map((scan) => (
+                    {dayScan.map((scan) => {
+                      const businessName = Array.isArray(scan.businesses)
+                        ? scan.businesses[0]?.business_name ?? 'Business'
+                        : scan.businesses?.business_name ?? 'Business';
+
+                      return (
                       <div
-                        key={String(scan.id)}
+                        key={scan.id}
                         className="p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
                               <span className="text-sm font-medium text-gray-900">
-                                {String(scan.query || 'Scan')}
+                                {businessName}
                               </span>
-                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                {String(scan.platform_id ?? 'unknown')}
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded ${
+                                  scan.status === 'completed'
+                                    ? 'bg-green-100 text-green-700'
+                                    : scan.status === 'failed'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-yellow-100 text-yellow-700'
+                                }`}
+                              >
+                                {scan.status}
                               </span>
-                              {Boolean(scan.mentioned) && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                                  Mentioned
-                                </span>
-                              )}
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-600">
-                              {typeof scan.position === 'number' && (
-                                <div>
-                                  <span className="text-gray-500">Position:</span>
-                                  <span className="font-medium ml-1">#{scan.position}</span>
-                                </div>
-                              )}
-                              {typeof scan.sentiment === 'string' && (
-                                <div>
-                                  <span className="text-gray-500">Sentiment:</span>
-                                  <span className="font-medium ml-1 capitalize">
-                                    {scan.sentiment}
-                                  </span>
-                                </div>
-                              )}
                               <div>
-                                <span className="text-gray-500">Scanned:</span>
+                                <span className="text-gray-500">Requested:</span>
                                 <span className="font-medium ml-1">
-                                  {new Date(String(scan.scanned_at)).toLocaleTimeString([], {
+                                  {scan.requested_query_count} queries
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Processed:</span>
+                                <span className="font-medium ml-1">{scan.scanned_queries}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Mentions:</span>
+                                <span className="font-medium ml-1">{scan.mentions_found}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Errors:</span>
+                                <span className="font-medium ml-1">{scan.errors_count}</span>
+                              </div>
+                            </div>
+                            {scan.error_message && (
+                              <p className="mt-2 text-xs text-red-600">{scan.error_message}</p>
+                            )}
+                            <p className="mt-2 text-xs text-gray-500">
+                              Started{' '}
+                              {new Date(scan.started_at).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                              {scan.completed_at && (
+                                <>
+                                  {' '}· Completed{' '}
+                                  {new Date(scan.completed_at).toLocaleTimeString([], {
                                     hour: '2-digit',
                                     minute: '2-digit',
                                   })}
-                                </span>
-                              </div>
-                            </div>
+                                </>
+                              )}
+                            </p>
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                   </div>
                 </div>
               ))}

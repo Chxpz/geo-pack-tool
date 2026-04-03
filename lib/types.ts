@@ -14,18 +14,18 @@ export interface User {
   full_name?: string;
   company_name?: string;
   email_verified: boolean;
-  oauth_provider?: 'shopify' | 'email';
+  oauth_provider?: 'email';
   role?: 'customer' | 'operator' | 'admin';
   created_at: string;
 }
 
 /**
- * E-commerce store connection (Shopify, WooCommerce)
+ * Legacy e-commerce store connection
  */
 export interface Store {
   id: string;
   user_id: string;
-  platform: 'shopify' | 'woocommerce';
+  platform: 'woocommerce';
   store_url: string;
   store_name?: string;
   store_domain?: string;

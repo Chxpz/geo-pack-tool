@@ -113,30 +113,9 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  // TODO: Implement Shopify OAuth
-                  alert('Shopify OAuth coming in Day 2');
-                }}
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16.373 4.618c-.356-.084-.712-.084-1.068 0-.356.084-.712.252-1.068.504-.356.252-.712.588-1.068 1.008-.356.42-.712.924-1.068 1.512-.356-.588-.712-1.092-1.068-1.512-.356-.42-.712-.756-1.068-1.008-.356-.252-.712-.42-1.068-.504-.356-.084-.712-.084-1.068 0-.356.084-.712.252-1.068.504-.356.252-.712.588-1.068 1.008-.356.42-.712.924-1.068 1.512-.356.588-.712 1.26-1.068 2.016-.356.756-.712 1.596-1.068 2.52-.356.924-.712 1.932-1.068 3.024-.356 1.092-.712 2.268-1.068 3.528h24c-.356-1.26-.712-2.436-1.068-3.528-.356-1.092-.712-2.1-1.068-3.024-.356-.924-.712-1.764-1.068-2.52-.356-.756-.712-1.428-1.068-2.016-.356-.588-.712-1.092-1.068-1.512-.356-.42-.712-.756-1.068-1.008-.356-.252-.712-.42-1.068-.504z"/>
-                </svg>
-                Sign in with Shopify
-              </button>
-            </div>
+            <p className="text-center text-sm text-gray-500">
+              Sign in with your email and password to access your workspace.
+            </p>
           </div>
         </form>
       </div>

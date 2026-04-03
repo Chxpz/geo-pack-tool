@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ci": "node scripts/run-checks.mjs lint typecheck",
+    "verify:release": "node scripts/verify-release.mjs"
   },
   "dependencies": {
     "@auth/supabase-adapter": "^1.11.1",

@@ -4,6 +4,12 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
+import {
+  createScanRun,
+  markScanRunCompleted,
+  markScanRunFailed,
+  updateScanRunProgress,
+} from '@/lib/scan-runs';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +57,10 @@ export interface ScanRunResult {
   scanned: number;
   mentions: number;
   errors: number;
+}
+
+export interface ScanRunProgress extends ScanRunResult {
+  totalQueries: number;
 }
 
 // ─── Response Parsing ────────────────────────────────────────────────────────
@@ -424,15 +434,17 @@ async function scanBusinessOnPlatform(
   query: ScanQuery,
   platform: AIPlatformRow,
   competitors: ScanCompetitor[],
-): Promise<number> {
-  if (!supabaseAdmin) return 0;
+): Promise<{ mentions: number; errors: number }> {
+  if (!supabaseAdmin) {
+    return { mentions: 0, errors: 1 };
+  }
 
   let result: MentionResult;
   try {
     result = await callPlatform(platform.slug as PlatformSlug, query.query_text);
   } catch (err) {
     console.error(`[scanner] ${platform.slug} error for business ${business.id} query ${query.id}:`, err);
-    return 0;
+    return { mentions: 0, errors: 1 };
   }
 
   // Check if business website appears in response
@@ -461,10 +473,13 @@ async function scanBusinessOnPlatform(
 
   if (error) {
     console.error(`[scanner] DB insert error for business ${business.id}:`, error.message);
-    return 0;
+    return { mentions: 0, errors: 1 };
   }
 
-  return result.competitors.length > 0 ? 1 : 0;
+  return {
+    mentions: result.competitors.length > 0 ? 1 : 0,
+    errors: 0,
+  };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -482,6 +497,9 @@ function sleep(ms: number): Promise<void> {
 export async function runBusinessScanner(
   businessId: string,
   queryIds?: string[],
+  options?: {
+    onProgress?: (progress: ScanRunProgress) => Promise<void> | void;
+  },
 ): Promise<ScanRunResult> {
   if (!supabaseAdmin) {
     throw new Error('Supabase admin client not available');
@@ -517,7 +535,17 @@ export async function runBusinessScanner(
     .eq('business_id', businessId)
     .eq('is_active', true);
 
-  if (queryIds && queryIds.length > 0) {
+  if (queryIds !== undefined) {
+    if (queryIds.length === 0) {
+      await options?.onProgress?.({
+        scanned: 0,
+        mentions: 0,
+        errors: 0,
+        totalQueries: 0,
+      });
+      return { scanned: 0, mentions: 0, errors: 0 };
+    }
+
     queryBuilder = queryBuilder.in('id', queryIds);
   }
 
@@ -528,6 +556,12 @@ export async function runBusinessScanner(
   }
 
   if (!queries || queries.length === 0) {
+    await options?.onProgress?.({
+      scanned: 0,
+      mentions: 0,
+      errors: 0,
+      totalQueries: 0,
+    });
     return { scanned: 0, mentions: 0, errors: 0 };
   }
 
@@ -542,6 +576,7 @@ export async function runBusinessScanner(
   }
 
   const competitorList = (competitors as ScanCompetitor[]) ?? [];
+  const totalQueries = (queries as ScanQuery[]).length;
 
   let scanned = 0;
   let mentions = 0;
@@ -550,8 +585,14 @@ export async function runBusinessScanner(
   for (const q of queries as ScanQuery[]) {
     for (const platform of platforms as AIPlatformRow[]) {
       try {
-        const count = await scanBusinessOnPlatform(business, q, platform, competitorList);
-        mentions += count;
+        const platformResult = await scanBusinessOnPlatform(
+          business,
+          q,
+          platform,
+          competitorList,
+        );
+        mentions += platformResult.mentions;
+        errors += platformResult.errors;
       } catch (err) {
         console.error(`[scanner] Error scanning business ${business.id} on platform ${platform.slug}:`, err);
         errors++;
@@ -560,6 +601,12 @@ export async function runBusinessScanner(
       await sleep(500);
     }
     scanned++;
+    await options?.onProgress?.({
+      scanned,
+      mentions,
+      errors,
+      totalQueries,
+    });
     // Pause between queries
     await sleep(300);
   }
@@ -577,7 +624,7 @@ export async function runScanner(
 
   let businessQuery = supabaseAdmin
     .from('businesses')
-    .select('id')
+    .select('id, user_id')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(maxBusinesses);
@@ -593,12 +640,36 @@ export async function runScanner(
 
   let totals: ScanRunResult = { scanned: 0, mentions: 0, errors: 0 };
   for (const business of businesses ?? []) {
-    const result = await runBusinessScanner(business.id as string);
-    totals = {
-      scanned: totals.scanned + result.scanned,
-      mentions: totals.mentions + result.mentions,
-      errors: totals.errors + result.errors,
-    };
+    const businessId = business.id as string;
+    const userIdForBusiness = business.user_id as string;
+    const scanRun = await createScanRun({
+      businessId,
+      userId: userIdForBusiness,
+      queryIds: [],
+    });
+
+    try {
+      const result = await runBusinessScanner(businessId, undefined, {
+        onProgress: async (progress) => {
+          await updateScanRunProgress(scanRun.id, progress);
+        },
+      });
+
+      await markScanRunCompleted(scanRun.id, result);
+      totals = {
+        scanned: totals.scanned + result.scanned,
+        mentions: totals.mentions + result.mentions,
+        errors: totals.errors + result.errors,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Scan failed';
+      await markScanRunFailed(scanRun.id, message);
+      totals = {
+        scanned: totals.scanned,
+        mentions: totals.mentions,
+        errors: totals.errors + 1,
+      };
+    }
   }
 
   return totals;

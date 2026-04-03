@@ -189,7 +189,7 @@ export default async function TruthEnginePage({ searchParams }: PageProps) {
             </p>
             {resolvedFilter !== 'true' && totalProducts === 0 && (
               <p className="text-xs text-gray-400 mt-2">
-                Connect a Shopify store and run a sync to start checking your products.
+                Connect a store data source and run a sync to start checking your products.
               </p>
             )}
           </div>
