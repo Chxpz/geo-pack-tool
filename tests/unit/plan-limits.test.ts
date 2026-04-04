@@ -30,9 +30,17 @@ describe('plan limits', () => {
   });
 
   it('reports feature access by plan', () => {
-    expect(canAccessFeature('free', 'otterly')).toBe(false);
-    expect(canAccessFeature('business', 'otterly')).toBe(true);
+    expect(canAccessFeature('free', 'geo_audit')).toBe(true);
+    expect(canAccessFeature('business', 'geo_audit')).toBe(true);
     expect(canAccessFeature('enterprise', 'concierge')).toBe(true);
+    expect(canAccessFeature('free', 'concierge')).toBe(false);
+  });
+
+  it('exposes geo audit monthly limits per plan', () => {
+    expect(PLAN_LIMITS.free.maxGeoAuditsPerMonth).toBe(1);
+    expect(PLAN_LIMITS.pro.maxGeoAuditsPerMonth).toBe(3);
+    expect(PLAN_LIMITS.business.maxGeoAuditsPerMonth).toBe(10);
+    expect(PLAN_LIMITS.enterprise.maxGeoAuditsPerMonth).toBe(999);
   });
 
   it('throws when an asserted limit is exceeded', () => {

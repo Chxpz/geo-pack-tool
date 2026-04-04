@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         scan_frequency: PLAN_CONFIG.free.scanFrequency,
         semrush_depth: PLAN_CONFIG.free.semrushDepth,
         perplexity_model: PLAN_CONFIG.free.perplexityModel,
-        otterly_access: PLAN_CONFIG.free.otterlyAccess,
+        max_geo_audits_per_month: PLAN_CONFIG.free.maxGeoAuditsPerMonth,
         concierge_access: PLAN_CONFIG.free.conciergeAccess,
         data_retention_days: PLAN_CONFIG.free.dataRetentionDays,
       });

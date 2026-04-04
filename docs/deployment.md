@@ -1,45 +1,51 @@
 # Deployment
 
-## Production Checklist
+## 1. Environment Variables
 
-### 1. Configure environment variables
+All required for production:
 
-Required by active code:
+**Auth**
+- `NEXTAUTH_URL`
+- `NEXTAUTH_SECRET`
 
-- Auth
-  - `NEXTAUTH_URL`
-  - `NEXTAUTH_SECRET`
-- Supabase
-  - `SUPABASE_URL`
-  - `SUPABASE_ANON_KEY`
-  - `SUPABASE_SERVICE_ROLE_KEY`
-- AI providers
-  - `OPENAI_API_KEY`
-  - `PERPLEXITY_API_KEY`
-  - `PERPLEXITY_SONAR_API_KEY`
-  - `ANTHROPIC_API_KEY`
-  - `GEMINI_API_KEY`
-  - `SEMRUSH_API_KEY`
-- Billing
-  - `STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_SECRET_KEY`
-  - `STRIPE_WEBHOOK_SECRET`
-  - `STRIPE_PRICE_ID_PRO`
-  - `STRIPE_PRICE_ID_BUSINESS`
-  - `STRIPE_PRICE_ID_ENTERPRISE`
-- Email
-  - `RESEND_API_KEY`
-  - `RESEND_FROM_EMAIL`
-- Cron protection
-  - `CRON_SECRET`
-- Optional
-  - `AGENT_MODEL`
+**Supabase**
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-Some routes degrade gracefully when a service is missing, but a production deployment should treat the full list above as the expected runtime configuration.
+**AI Providers**
+- `OPENAI_API_KEY`
+- `PERPLEXITY_API_KEY`
+- `PERPLEXITY_SONAR_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`
+- `SEMRUSH_API_KEY`
 
-### 2. Apply migrations
+**Stack3 Audit System**
+- `STACK3_AUDIT_API_URL` — Stack3 Audit base URL
+- `STACK3_AUDIT_API_KEY` — API key (min 32 chars, must match Stack3 Audit's `API_KEY` env)
 
-Apply all migrations in order:
+**Billing**
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_ID_PRO`
+- `STRIPE_PRICE_ID_BUSINESS`
+- `STRIPE_PRICE_ID_ENTERPRISE`
+
+**Email**
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+
+**Cron**
+- `CRON_SECRET`
+
+**Optional**
+- `AGENT_MODEL` — override concierge model (default: `gpt-5.4-mini`)
+
+## 2. Database Migrations
+
+Apply all in order against the production Supabase instance:
 
 1. `000_supabase_roles.sql`
 2. `001_initial_schema.sql`
@@ -48,47 +54,63 @@ Apply all migrations in order:
 5. `004_reports_table.sql`
 6. `005_deep_research_results.sql`
 7. `006_scan_runs.sql`
+8. `007_clean_deploy.sql`
 
-### 3. Run release verification
+Migration 007 is the clean production schema for GEO audits. It drops and recreates `geo_audits` (Stack3 Audit aligned), removes the `otterly_access` column from `subscriptions`, adds `max_geo_audits_per_month`, and updates constraints on `operator_tasks` and `data_imports`.
+
+## 3. Release Verification
 
 ```bash
 npm install
 npm run verify:release
 ```
 
-This validates:
+Validates: lint, typecheck, tests, production build, and expected build artifacts.
 
-- lint
-- typecheck
-- production build
-- presence of expected Next build artifacts
+## 4. Deploy
 
-### 4. Deploy
+The app deploys to Vercel. Cron schedules are defined in `vercel.json`:
 
-The repository is set up for Vercel-style cron scheduling through `vercel.json`.
+| Schedule | Route | Purpose |
+|----------|-------|---------|
+| `0 3 * * *` | `/api/cron/scanner` | Daily AI mention scanning |
+| `0 2 * * 0` | `/api/cron/seo-refresh` | Weekly SEMrush refresh |
+| `0 9 * * 1` | `/api/cron/weekly-digest` | Weekly email digest |
+| `0 4 * * *` | `/api/cron/data-retention` | Data retention cleanup |
 
-Current schedules:
+All cron routes require `Authorization: Bearer ${CRON_SECRET}`.
 
-- `0 3 * * *` → `/api/cron/scanner`
-- `0 2 * * 0` → `/api/cron/seo-refresh`
-- `0 9 * * 1` → `/api/cron/weekly-digest`
-- `0 4 * * *` → `/api/cron/data-retention`
+## 5. Post-Deploy Smoke Test
 
-### 5. Smoke check after deploy
+1. `GET /api/health` — returns ok
+2. Signup and login flow
+3. Onboard a new business
+4. Trigger a scan and verify status polling
+5. Dashboard loads with data
+6. Trigger a GEO audit and verify 12-dimension results populate
+7. Generate and download a report
+8. Billing checkout/portal (if Stripe configured)
 
-- `GET /api/health`
-- signup and login
-- onboarding for a new account
-- first scan trigger and status polling
-- dashboard load
-- report generation and download
-- billing checkout/portal if Stripe is configured
+## 6. Stack3 Audit System Dependency
 
-## GitHub Release Gates
+The GEO audit feature requires the Stack3 Audit System to be deployed and accessible at the configured `STACK3_AUDIT_API_URL`. The audit system is a separate service with its own deployment.
 
-The repo currently enforces:
+AgenticRevops calls three endpoints on the audit system:
+- `POST /api/v1/audits` — trigger async audit
+- `GET /api/v1/audits/:id` — poll status
+- `GET /api/v1/audits/:id/result` — fetch full result on completion
 
-- `CI` workflow for PRs and pushes
-- `Release Verification` workflow for main, tags, and manual runs
+## CI/CD
 
-Both workflows install dependencies and validate the codebase with placeholder environment values.
+GitHub Actions:
+- **CI** (`ci.yml`) — runs on PRs and pushes to main
+- **Release Verification** (`release-verification.yml`) — runs on main, tags (`v*`), and manual dispatch. Uploads build artifacts (BUILD_ID, manifests).
+
+## Billing Tiers
+
+| Plan | Price | Businesses | Competitors | Queries/mo | GEO Audits/mo | Scan Freq | Concierge |
+|------|-------|------------|-------------|------------|---------------|-----------|-----------|
+| Free | $0 | 1 | 2 | 10 | 1 | Weekly | No |
+| Pro | $149 | 1 | 5 | 50 | 3 | Every 3 days | No |
+| Business | $399 | 3 | 10 | 150 | 10 | Daily | No |
+| Enterprise | $899 | 10 | 25 | 500 | Unlimited | Realtime | Yes |

@@ -45,9 +45,11 @@ export interface AgentContext {
   };
   geoAudit?: {
     score?: number;
-    strengths?: string[];
-    weaknesses?: string[];
-    opportunities?: string[];
+    verdict?: string;
+    weakDimensions?: Array<{ name: string; score: number; maxScore: number }>;
+    criticalFindings?: Array<{ severity: string; title: string; description: string }>;
+    actionPlan?: { critical: string[]; nearTerm: string[]; strategic: string[] };
+    reportUrl?: string;
   };
   competitors: Array<{
     id: string;
@@ -120,11 +122,12 @@ export async function buildAgentContext(businessId: string): Promise<AgentContex
     .order('created_at', { ascending: false })
     .limit(30);
 
-  // Fetch latest GEO audit
+  // Fetch latest complete GEO audit
   const { data: geoAudit } = await supabaseAdmin
     .from('geo_audits')
-    .select('overall_score, strengths, weaknesses, opportunities')
+    .select('overall_score, verdict, dimension_scores, findings, action_plan, report_url')
     .eq('business_id', businessId)
+    .eq('status', 'complete')
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
@@ -198,9 +201,16 @@ export async function buildAgentContext(businessId: string): Promise<AgentContex
     geoAudit: geoAudit
       ? {
           score: geoAudit.overall_score || undefined,
-          strengths: geoAudit.strengths || undefined,
-          weaknesses: geoAudit.weaknesses || undefined,
-          opportunities: geoAudit.opportunities || undefined,
+          verdict: geoAudit.verdict || undefined,
+          weakDimensions: (geoAudit.dimension_scores as Array<{ number: number; name: string; score: number; maxScore: number }>)
+            ?.sort((a, b) => (a.score / a.maxScore) - (b.score / b.maxScore))
+            .slice(0, 3)
+            .map(d => ({ name: d.name, score: d.score, maxScore: d.maxScore })),
+          criticalFindings: (geoAudit.findings as Array<{ severity: string; title: string; description: string }>)
+            ?.filter(f => f.severity === 'Critical' || f.severity === 'High')
+            .slice(0, 5),
+          actionPlan: geoAudit.action_plan as { critical: string[]; nearTerm: string[]; strategic: string[] } | undefined,
+          reportUrl: geoAudit.report_url || undefined,
         }
       : undefined,
     competitors: (competitors || []).map(c => ({
@@ -309,13 +319,25 @@ function formatContextSnapshot(context: AgentContext): string {
     lines.push('');
     lines.push(`### GEO Audit`);
     if (context.geoAudit.score !== undefined) {
-      lines.push(`- Overall Score: ${context.geoAudit.score}`);
+      lines.push(`- Overall Score: ${context.geoAudit.score}/100 (${context.geoAudit.verdict ?? 'N/A'})`);
     }
-    if (context.geoAudit.strengths?.length) {
-      lines.push(`- Strengths: ${context.geoAudit.strengths.join(', ')}`);
+    if (context.geoAudit.weakDimensions?.length) {
+      lines.push(`- Weakest Dimensions:`);
+      for (const d of context.geoAudit.weakDimensions) {
+        lines.push(`  - ${d.name}: ${d.score}/${d.maxScore}`);
+      }
     }
-    if (context.geoAudit.weaknesses?.length) {
-      lines.push(`- Weaknesses: ${context.geoAudit.weaknesses.join(', ')}`);
+    if (context.geoAudit.criticalFindings?.length) {
+      lines.push(`- Critical/High Findings:`);
+      for (const f of context.geoAudit.criticalFindings) {
+        lines.push(`  - [${f.severity}] ${f.title}: ${f.description}`);
+      }
+    }
+    if (context.geoAudit.actionPlan?.critical?.length) {
+      lines.push(`- Critical Actions: ${context.geoAudit.actionPlan.critical.join('; ')}`);
+    }
+    if (context.geoAudit.reportUrl) {
+      lines.push(`- Full Report: ${context.geoAudit.reportUrl}`);
     }
   }
 

@@ -96,10 +96,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Fetch audit
+    // Fetch audit (must belong to user)
     const { data: audit } = await supabase
       .from('geo_audits')
-      .select('recommendations')
+      .select('recommendations, user_id')
       .eq('id', audit_id)
       .single();
 
@@ -108,6 +108,10 @@ export async function PATCH(request: NextRequest) {
         { error: 'Audit not found' },
         { status: 404 }
       );
+    }
+
+    if (audit.user_id !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Update recommendation status

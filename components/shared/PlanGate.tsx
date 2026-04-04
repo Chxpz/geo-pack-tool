@@ -12,9 +12,7 @@ interface PlanGateProps {
 export function PlanGate({ feature, currentPlan, children }: PlanGateProps) {
   // List of features that require paid plans
   const featureReqs: Record<string, string> = {
-    otterly: 'business',
     concierge: 'enterprise',
-    geo_audit: 'enterprise',
   };
 
   const requiredPlan = featureReqs[feature];

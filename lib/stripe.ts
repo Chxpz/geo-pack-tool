@@ -21,7 +21,8 @@ export interface PlanConfig {
   scanFrequency: string; // e.g., 'daily', 'weekly'
   semrushDepth: string; // e.g., 'basic', 'advanced', 'full'
   perplexityModel: string; // e.g., 'default', 'advanced', 'pro'
-  otterlyAccess: boolean;
+  geoAuditAccess: boolean;
+  maxGeoAuditsPerMonth: number;
   conciergeAccess: boolean;
   dataRetentionDays: number;
   features: string[];
@@ -39,7 +40,8 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
     scanFrequency: 'weekly',
     semrushDepth: 'basic',
     perplexityModel: 'default',
-    otterlyAccess: false,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 1,
     conciergeAccess: false,
     dataRetentionDays: 30,
     features: [
@@ -49,6 +51,7 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
       '30-day data retention',
       'Basic GEO/AEO analysis',
       'Weekly scans',
+      '1 GEO audit/month',
     ],
     stripePriceId: null,
   },
@@ -62,7 +65,8 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
     scanFrequency: 'every_3_days',
     semrushDepth: 'advanced',
     perplexityModel: 'advanced',
-    otterlyAccess: false,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 3,
     conciergeAccess: false,
     dataRetentionDays: 90,
     features: [
@@ -73,6 +77,7 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
       'Advanced GEO/AEO analysis',
       'Every 3 days scans',
       'Semrush advanced depth',
+      '3 GEO audits/month',
     ],
     stripePriceId: process.env.STRIPE_PRICE_ID_PRO ?? null,
   },
@@ -86,7 +91,8 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
     scanFrequency: 'daily',
     semrushDepth: 'full',
     perplexityModel: 'pro',
-    otterlyAccess: true,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 10,
     conciergeAccess: false,
     dataRetentionDays: 180,
     features: [
@@ -97,7 +103,7 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
       'Full GEO/AEO analysis',
       'Daily scans',
       'Semrush full depth',
-      'Otterly access',
+      '10 GEO audits/month',
       'Priority support',
     ],
     stripePriceId: process.env.STRIPE_PRICE_ID_BUSINESS ?? null,
@@ -112,7 +118,8 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
     scanFrequency: 'realtime',
     semrushDepth: 'full',
     perplexityModel: 'pro',
-    otterlyAccess: true,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 999,
     conciergeAccess: true,
     dataRetentionDays: 365,
     features: [
@@ -123,7 +130,7 @@ export const PLAN_CONFIG: Record<string, PlanConfig> = {
       'Full GEO/AEO analysis',
       'Real-time scans',
       'Semrush full depth',
-      'Otterly access',
+      'Unlimited GEO audits',
       'Concierge service',
       '24/7 priority support',
     ],
@@ -152,7 +159,7 @@ interface SubscriptionRow {
   scan_frequency: string;
   semrush_depth: string;
   perplexity_model: string;
-  otterly_access: boolean;
+  max_geo_audits_per_month: number;
   concierge_access: boolean;
   data_retention_days: number;
   stripe_customer_id: string | null;
@@ -175,7 +182,7 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionR
     scan_frequency: PLAN_CONFIG.free.scanFrequency,
     semrush_depth: PLAN_CONFIG.free.semrushDepth,
     perplexity_model: PLAN_CONFIG.free.perplexityModel,
-    otterly_access: PLAN_CONFIG.free.otterlyAccess,
+    max_geo_audits_per_month: PLAN_CONFIG.free.maxGeoAuditsPerMonth,
     concierge_access: PLAN_CONFIG.free.conciergeAccess,
     data_retention_days: PLAN_CONFIG.free.dataRetentionDays,
     stripe_customer_id: null,
@@ -188,7 +195,7 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionR
   const { data } = await supabaseAdmin
     .from('subscriptions')
     .select(
-      'id, plan, status, max_businesses, max_competitors, max_queries, scan_frequency, semrush_depth, perplexity_model, otterly_access, concierge_access, data_retention_days, stripe_customer_id, stripe_subscription_id, current_period_end',
+      'id, plan, status, max_businesses, max_competitors, max_queries, scan_frequency, semrush_depth, perplexity_model, max_geo_audits_per_month, concierge_access, data_retention_days, stripe_customer_id, stripe_subscription_id, current_period_end',
     )
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
@@ -295,7 +302,7 @@ export async function syncSubscriptionFromStripe(data: StripeSubData): Promise<v
       scan_frequency: plan.scanFrequency,
       semrush_depth: plan.semrushDepth,
       perplexity_model: plan.perplexityModel,
-      otterly_access: plan.otterlyAccess,
+      max_geo_audits_per_month: plan.maxGeoAuditsPerMonth,
       concierge_access: plan.conciergeAccess,
       data_retention_days: plan.dataRetentionDays,
       price_per_month: plan.price,
@@ -324,7 +331,7 @@ export async function cancelSubscriptionInDb(stripeCustomerId: string): Promise<
       scan_frequency: PLAN_CONFIG.free.scanFrequency,
       semrush_depth: PLAN_CONFIG.free.semrushDepth,
       perplexity_model: PLAN_CONFIG.free.perplexityModel,
-      otterly_access: PLAN_CONFIG.free.otterlyAccess,
+      max_geo_audits_per_month: PLAN_CONFIG.free.maxGeoAuditsPerMonth,
       concierge_access: PLAN_CONFIG.free.conciergeAccess,
       data_retention_days: PLAN_CONFIG.free.dataRetentionDays,
       updated_at: new Date().toISOString(),

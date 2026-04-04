@@ -79,8 +79,6 @@ export default async function ScansPage() {
   const queryTypeLabels: Record<string, string> = {
     system_generated: 'System',
     user_custom: 'Custom',
-    otterly_imported: 'Otterly',
-    otterly_prompt_research: 'Prompt Research',
     gsc_imported: 'GSC Import',
     sonar_discovered: 'Sonar',
   };

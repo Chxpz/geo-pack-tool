@@ -80,7 +80,7 @@ export interface AIMention {
   search_context_size?: number;
   nss_score?: number;
   domain_cited?: string;
-  source?: 'llm_scan' | 'perplexity_sonar' | 'otterly_import';
+  source?: 'llm_scan' | 'perplexity_sonar';
   token_usage?: number;
   scanned_at: string;
 }
@@ -116,7 +116,7 @@ export interface Subscription {
   scan_frequency?: 'weekly' | 'biweekly' | 'monthly' | 'daily' | 'realtime';
   semrush_depth?: 'lite' | 'standard' | 'pro';
   perplexity_model?: 'sonar' | 'sonar_pro';
-  otterly_access?: boolean;
+  max_geo_audits_per_month?: number;
   concierge_access?: boolean;
   data_retention_days?: number;
   current_period_end?: string;
@@ -246,7 +246,7 @@ export interface TrackedQuery {
   business_id: string;
   user_id: string;
   query_text: string;
-  query_type: 'system_generated' | 'user_custom' | 'otterly_imported' | 'otterly_prompt_research' | 'gsc_imported' | 'sonar_discovered';
+  query_type: 'system_generated' | 'user_custom' | 'gsc_imported' | 'sonar_discovered';
   intent_category?: 'discovery' | 'comparison' | 'review' | 'service_specific' | 'location_specific';
   intent_volume?: number;
   growth_3m?: number;
@@ -274,7 +274,7 @@ export interface Citation {
   is_own_domain: boolean;
   is_competitor_domain: boolean;
   competitor_id?: string;
-  source: 'llm_scan' | 'perplexity_sonar' | 'otterly_import';
+  source: 'llm_scan' | 'perplexity_sonar';
   scan_date: string;
   created_at: string;
 }
@@ -304,7 +304,7 @@ export interface BrandVisibility {
   bvi_coverage_x?: number;
   bvi_likelihood_y?: number;
   competitor_mention_counts?: Record<string, number>;
-  source: 'calculated' | 'otterly_import' | 'looker_studio';
+  source: 'calculated' | 'looker_studio';
   period_start: string;
   period_end: string;
   created_at: string;
@@ -358,34 +358,81 @@ export interface SEOSnapshot {
 }
 
 /**
- * Geolocation and content audit results
+ * GEO/AEO audit results (Stack3 Audit System aligned)
  */
 export interface GEOAudit {
   id: string;
   business_id: string;
   user_id: string;
-  audit_type: 'initial' | 'quarterly' | 'on_demand';
+
+  // Async job tracking
+  stack3_audit_id: string;
+  status: 'queued' | 'crawling' | 'analyzing' | 'generating' | 'complete' | 'failed';
+  error_message?: string;
+
+  // Audit metadata
+  audit_type: 'on_demand' | 'scheduled';
+  audit_date: string;
+  pages_crawled?: number;
+  audit_duration_ms?: number;
+  report_url?: string;
+  report_format?: string;
+
+  // Top-level score
+  overall_score?: number;
+  verdict?: string;
+
+  // 3 grouped scores (derived from 12 dimensions)
   crawlability_score?: number;
-  crawlability_details?: Record<string, unknown>;
   content_score?: number;
-  content_details?: Record<string, unknown>;
   structured_data_score?: number;
-  structured_data_details?: Record<string, unknown>;
-  strengths?: string[];
-  weaknesses?: string[];
-  opportunities?: string[];
-  threats?: string[];
-  recommendations?: Array<{
+
+  // Full 12-dimension output
+  dimension_scores: Array<{
+    number: number;
+    name: string;
+    maxScore: number;
+    score: number;
+    justification: string;
+    pointsBreakdown: Array<{ point: string; earned: number; max: number }>;
+    contentSubFactors?: Record<string, { score: number; recommendation: string }>;
+  }>;
+
+  // Findings and actions
+  findings: Array<{
+    severity: 'Critical' | 'High' | 'Medium' | 'Low' | 'Opportunity';
+    category: string;
+    title: string;
+    description: string;
+    recommendation: string;
+    affectedPages?: string[];
+  }>;
+  action_plan: { critical: string[]; nearTerm: string[]; strategic: string[] };
+  quick_wins: Array<{ title: string; description: string; effort: string; impact: string }>;
+  does_well: string[];
+  missing_for_citation: string[];
+
+  // SWOT
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  threats: string[];
+
+  // User-managed recommendations
+  recommendations: Array<{
     title: string;
     description: string;
     priority: 'high' | 'medium' | 'low';
     category: string;
     status: 'pending' | 'in_progress' | 'completed' | 'dismissed';
   }>;
-  evaluation_factors?: Record<string, number>;
-  overall_score?: number;
-  source: 'otterly' | 'internal' | 'agent';
-  audit_date: string;
+
+  // Per-page breakdown
+  page_notes: Array<{
+    url: string;
+    issues: Array<{ type: string; severity: string; description: string }>;
+  }>;
+
   created_at: string;
 }
 
@@ -414,7 +461,7 @@ export interface OperatorTask {
   business_id: string;
   user_id: string;
   operator_id?: string;
-  task_type: 'otterly_setup' | 'otterly_scan' | 'otterly_export' | 'geo_audit';
+  task_type: 'geo_audit' | 'manual_review' | 'support';
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   notes?: string;
   data_files?: string[];
@@ -430,7 +477,7 @@ export interface DataImport {
   id: string;
   business_id: string;
   operator_id: string;
-  import_type: 'otterly_prompts' | 'otterly_citations' | 'otterly_citations_summary' | 'otterly_visibility' | 'otterly_geo_audit';
+  import_type: 'manual_upload';
   file_name: string;
   row_count?: number;
   status: 'pending' | 'processing' | 'completed' | 'failed';

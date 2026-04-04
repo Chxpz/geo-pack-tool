@@ -124,7 +124,7 @@ export default async function AdminPage() {
           >
             <div className="text-lg font-semibold text-gray-900">Import Data</div>
             <p className="mt-2 text-sm text-gray-600">
-              Upload Otterly CSV exports
+              Upload data files for import
             </p>
             <div className="mt-4 inline-block text-green-600 font-semibold">Import Now →</div>
           </Link>

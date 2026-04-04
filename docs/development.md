@@ -2,9 +2,8 @@
 
 ## Prerequisites
 
-- Node.js 22 recommended
+- Node.js 22
 - npm
-- Supabase project or the local Docker stack in `docker-compose.yml`
 
 ## Install
 
@@ -17,58 +16,71 @@ npm install
 ### Cloud-backed development
 
 1. Copy `.env.example` to `.env.local`.
-2. Fill in the required service credentials.
+2. Fill in service credentials (Supabase, AI providers, Stripe, Resend, Stack3 Audit).
 
 ### Local Docker-backed development
 
 1. Copy `.env.local.example` to `.env.local`.
-2. Run:
+2. Start the local stack:
 
 ```bash
 docker compose up -d
 ```
 
-The Docker stack mounts all checked-in SQL migrations in `supabase/migrations/` for first boot.
+The Docker stack provides:
+- PostgreSQL 15 on port 5433 (auto-applies all migrations on first boot)
+- PostgREST API
+- Nginx proxy on port 8000 (mirrors Supabase URL structure)
+- Supabase Studio on port 54323
 
 ## Commands
 
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start Next.js dev server |
+| `npm run lint` | ESLint on `.ts`/`.tsx` (zero warnings enforced) |
+| `npm run typecheck` | TypeScript compile check without emit |
+| `npm run test` | Run Vitest unit tests |
+| `npm run build` | Production Next.js build |
+| `npm run ci` | `lint` + `typecheck` + `test` |
+| `npm run verify:release` | `ci` + production build + artifact verification |
+
+## Testing
+
+Unit tests run via Vitest and live in `tests/unit/`. Current test coverage:
+
+- `plan-limits.test.ts` — plan limits, feature access, upgrade guidance
+- `visibility-score.test.ts` — score computation and edge cases
+- `tokens.test.ts` — token generation and verification
+- `retry.test.ts` — retry behavior and backoff
+- `rate-limit.test.ts` — sliding window enforcement
+- Provider payload fixtures in `tests/unit/fixtures/`
+- Route-level tests for auth, webhooks, health, and scan trigger
+
+Run tests:
+
 ```bash
-npm run dev
-npm run lint
-npm run typecheck
-npm run build
-npm run ci
-npm run verify:release
+npm run test
 ```
-
-## What Each Command Means
-
-- `npm run lint`: ESLint on `.ts` and `.tsx`
-- `npm run typecheck`: TypeScript compile check without emit
-- `npm run build`: production Next.js build
-- `npm run ci`: local equivalent of the main CI validation path
-- `npm run verify:release`: `ci` plus production build artifact verification
-
-## Testing Reality
-
-Current checked-in automated validation is limited:
-
-- Static validation: lint, typecheck, build
-- One browser test file: `tests/e2e/onboarding.spec.ts`
-
-There is no package script for E2E execution in `package.json` today, and there is no committed Playwright workflow in the app scripts. Treat `npm run ci` and `npm run verify:release` as the enforced baseline.
 
 ## CI Workflows
 
-GitHub Actions workflows live in `.github/workflows/`:
+GitHub Actions in `.github/workflows/`:
 
-- `ci.yml`
-- `release-verification.yml`
+- **ci.yml** — runs on PRs and pushes to main. Installs, runs `npm run ci`.
+- **release-verification.yml** — runs on main pushes, tags (`v*`), and manual trigger. Runs `npm run verify:release` and uploads build artifacts.
 
-They use placeholder environment values so repository validation can run without real production credentials.
+Both use Node.js 22 and placeholder environment values.
 
-## Documentation Policy
+## Key Files
 
-- Keep root Markdown limited to `README.md`.
-- Put project documentation in `docs/`.
-- Remove outdated notes rather than preserving conflicting docs.
+| Path | Purpose |
+|------|---------|
+| `lib/stripe.ts` | Plan config (`PLAN_CONFIG`), Stripe helpers, subscription sync |
+| `lib/plan-limits.ts` | Plan limits (`PLAN_LIMITS`), feature gating, limit checks |
+| `lib/audit-client.ts` | Stack3 Audit System HTTP client and data mapper |
+| `lib/scanner.ts` | AI platform scan engine |
+| `lib/geo-agent.ts` | AI concierge RAG context builder and system prompts |
+| `lib/types.ts` | Core TypeScript interfaces for all database entities |
+| `lib/logger.ts` | Pino structured logger |
+| `lib/retry.ts` | Exponential backoff retry for external API calls |

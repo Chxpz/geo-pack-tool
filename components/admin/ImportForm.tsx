@@ -11,40 +11,24 @@ interface ImportFormProps {
 export default function ImportForm({ businesses, onImportComplete }: ImportFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>('');
-  const [importType, setImportType] = useState<'otterly_prompts' | 'otterly_citations' | 'otterly_citations_summary' | 'otterly_visibility' | 'otterly_geo_audit'>('otterly_prompts');
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'preview' | 'uploading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [previewRows, setPreviewRows] = useState<any[]>([]);
+  const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const IMPORT_TYPES = [
-    { value: 'otterly_prompts', label: 'Search Prompts' },
-    { value: 'otterly_citations', label: 'Citation Links Full' },
-    { value: 'otterly_citations_summary', label: 'Citation Links Summary' },
-    { value: 'otterly_visibility', label: 'Visibility Report' },
-    { value: 'otterly_geo_audit', label: 'GEO Audit' },
-  ] as const;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
-      setErrorMessage('Please select a CSV file');
-      setStatus('error');
-      return;
-    }
-
     setSelectedFile(file);
     setStatus('preview');
     setErrorMessage('');
 
-    // Read file and parse first 5 rows
     const text = await file.text();
     const lines = text.split('\n');
     const headers = lines[0].split(',').map((h) => h.trim());
-    const rows = [];
+    const rows: Record<string, string>[] = [];
 
     for (let i = 1; i < Math.min(6, lines.length); i++) {
       const values = lines[i].split(',').map((v) => v.trim());
@@ -75,7 +59,7 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('business_id', selectedBusinessId);
-      formData.append('import_type', importType);
+      formData.append('import_type', 'manual_upload');
 
       const response = await fetch('/api/admin/import', {
         method: 'POST',
@@ -115,7 +99,6 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
   return (
     <div className="w-full">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Business Selector */}
         <div>
           <label className="block text-sm font-medium text-gray-900 mb-2">Business</label>
           <select
@@ -132,31 +115,12 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
           </select>
         </div>
 
-        {/* Import Type Selector */}
         <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">Import Type</label>
-          <select
-            value={importType}
-            onChange={(e) =>
-              setImportType(e.target.value as typeof importType)
-            }
-            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          >
-            {IMPORT_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* File Upload */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">CSV File</label>
+          <label className="block text-sm font-medium text-gray-900 mb-2">File</label>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv"
+            accept=".csv,.json"
             onChange={handleFileSelect}
             className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
           />
@@ -167,7 +131,6 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
           )}
         </div>
 
-        {/* Preview */}
         {status === 'preview' && previewRows.length > 0 && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
             <h3 className="mb-3 text-sm font-semibold text-gray-900">Preview (first 5 rows)</h3>
@@ -178,10 +141,7 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
                     {Object.keys(previewRows[0] || {})
                       .slice(0, 5)
                       .map((key) => (
-                        <th
-                          key={key}
-                          className="px-3 py-2 text-left font-semibold text-gray-900"
-                        >
+                        <th key={key} className="px-3 py-2 text-left font-semibold text-gray-900">
                           {key}
                         </th>
                       ))}
@@ -211,7 +171,6 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
           </div>
         )}
 
-        {/* Status Messages */}
         {errorMessage && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {errorMessage}
@@ -230,7 +189,6 @@ export default function ImportForm({ businesses, onImportComplete }: ImportFormP
           </div>
         )}
 
-        {/* Submit Button */}
         <div className="flex gap-3 pt-4">
           <button
             type="submit"

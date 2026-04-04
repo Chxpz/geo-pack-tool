@@ -1,52 +1,48 @@
 # AgenticRev
 
-AgenticRev is a Next.js 16 application for monitoring business visibility across AI assistants and related search surfaces. The active product is centered on business onboarding, tracked queries, competitor monitoring, scan history, GEO audits, SEO snapshots, report generation, billing, and an enterprise-only AI concierge.
+AgenticRev is an AI visibility monitoring and optimization platform. It tracks how AI assistants (ChatGPT, Perplexity, Gemini, Claude) mention, position, and cite businesses — then provides a 12-dimension GEO audit powered by the Stack3 Audit System to improve those results.
 
-## Current Product Surface
+## Product Surface
 
-- Email/password signup and login with verification, password reset, and NextAuth sessions
-- Business-first onboarding with competitor setup and first-scan kickoff
-- Dashboard metrics for AI visibility, citations, authority, share of voice, and tracked queries
-- Query management and persisted scan history through `scan_runs`
-- Competitor management and suggestion endpoints
-- GEO audit display and SEO snapshot collection
-- HTML report generation and download
-- Stripe checkout, customer portal access, and plan gating
-- Enterprise AI concierge chat, insights, and deep research endpoints
-- Admin pages and task/import APIs
+- **AI Mention Monitoring** — Continuous scanning of ChatGPT, Perplexity, Gemini, and Claude for brand mentions, sentiment, position, and citations
+- **Visibility Dashboard** — Share of voice, coverage rate, citation tracking, authority score, and competitor benchmarking
+- **GEO Audit** — 12-dimension website audit via Stack3 Audit System API (crawlability, rendering, metadata, semantic structure, entity clarity, structured data, answer extraction, content quality, internal links, accessibility, brand trust, citation readiness)
+- **SEO Snapshots** — SEMrush-powered domain authority, organic traffic, keywords, and AI overview presence
+- **Reports** — HTML report generation and download
+- **AI Concierge** — Enterprise-only RAG-powered chat with business context, Perplexity web search, and deep research
+- **Billing** — Stripe-powered subscription tiers (Free / Pro / Business / Enterprise) with per-plan GEO audit limits
 
 ## Stack
 
-- Next.js 16 App Router
-- React 19
-- TypeScript
+- Next.js 16 (App Router) + React 19 + TypeScript
 - Tailwind CSS
 - NextAuth v5
-- Supabase/Postgres
-- Stripe
-- Resend
+- Supabase / PostgreSQL
+- Stripe, Resend, Pino
+- Recharts, Zod, Zustand, SWR
 
-## Repo Commands
+## Commands
 
 ```bash
-npm install
-npm run dev
-npm run lint
-npm run typecheck
-npm run build
-npm run ci
-npm run verify:release
+npm install          # Install dependencies
+npm run dev          # Start dev server
+npm run lint         # ESLint (zero warnings)
+npm run typecheck    # TypeScript compile check
+npm run test         # Vitest unit tests
+npm run build        # Production build
+npm run ci           # lint + typecheck + test
+npm run verify:release  # ci + build artifact verification
 ```
 
 ## Documentation
 
 - [Docs Index](docs/README.md)
 - [Architecture](docs/architecture.md)
+- [API Reference](docs/api.md)
 - [Development](docs/development.md)
 - [Deployment](docs/deployment.md)
-- [API Reference](docs/api.md)
 
 ## Notes
 
-- `deprecated/` contains archived legacy truth-engine code and is not part of the supported product flow.
-- `/api/stores` and `/api/stores/[id]` remain in the codebase as legacy store-management endpoints. They are not part of the primary onboarding or navigation flow.
+- `deprecated/` contains archived legacy e-commerce and truth-engine code. Not part of the active product.
+- Three AI platforms (Google AI Overviews, Google AI Mode, Microsoft Copilot) are marked `coming_soon` in the database and excluded from scans until Phase 2.

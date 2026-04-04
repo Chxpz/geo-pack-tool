@@ -7,8 +7,8 @@ export interface PlanLimits {
   scanFrequency: 'weekly' | 'daily' | 'realtime';
   semrushDepth: 'overview_only' | 'full' | 'full_historical';
   perplexityModel: 'sonar' | 'sonar-pro' | 'sonar-pro-deep';
-  otterlyAccess: boolean;
-  otterlyGeoAudit: boolean;
+  geoAuditAccess: boolean;
+  maxGeoAuditsPerMonth: number;
   conciergeAccess: boolean;
   dataRetentionDays: number;
   operatorSlaHours: number | null;
@@ -22,8 +22,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     scanFrequency: 'weekly',
     semrushDepth: 'overview_only',
     perplexityModel: 'sonar',
-    otterlyAccess: false,
-    otterlyGeoAudit: false,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 1,
     conciergeAccess: false,
     dataRetentionDays: 30,
     operatorSlaHours: null,
@@ -35,8 +35,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     scanFrequency: 'daily',
     semrushDepth: 'full',
     perplexityModel: 'sonar',
-    otterlyAccess: false,
-    otterlyGeoAudit: false,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 3,
     conciergeAccess: false,
     dataRetentionDays: 90,
     operatorSlaHours: null,
@@ -48,8 +48,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     scanFrequency: 'daily',
     semrushDepth: 'full',
     perplexityModel: 'sonar-pro',
-    otterlyAccess: true,
-    otterlyGeoAudit: false,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 10,
     conciergeAccess: false,
     dataRetentionDays: 180,
     operatorSlaHours: 48,
@@ -61,8 +61,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     scanFrequency: 'realtime',
     semrushDepth: 'full_historical',
     perplexityModel: 'sonar-pro-deep',
-    otterlyAccess: true,
-    otterlyGeoAudit: true,
+    geoAuditAccess: true,
+    maxGeoAuditsPerMonth: 999,
     conciergeAccess: true,
     dataRetentionDays: 365,
     operatorSlaHours: 24,
@@ -147,14 +147,12 @@ export function checkQueryLimit(
 
 export function canAccessFeature(
   planId: string,
-  feature: 'otterly' | 'otterly_geo_audit' | 'concierge'
+  feature: 'geo_audit' | 'concierge'
 ): boolean {
   const limits = getPlanLimits(planId);
   switch (feature) {
-    case 'otterly':
-      return limits.otterlyAccess;
-    case 'otterly_geo_audit':
-      return limits.otterlyGeoAudit;
+    case 'geo_audit':
+      return limits.geoAuditAccess;
     case 'concierge':
       return limits.conciergeAccess;
     default:
@@ -185,9 +183,6 @@ export function getOperatorSlaHours(planId: string): number | null {
 /**
  * Assertion function for plan limit checks in API routes.
  * Throws an error if the limit is exceeded.
- *
- * Usage:
- *   assertPlanLimit('business', currentCount, 'maxBusinesses', userId);
  */
 export function assertPlanLimit(
   planId: string,

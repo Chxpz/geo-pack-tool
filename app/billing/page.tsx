@@ -254,14 +254,10 @@ export default async function BillingPage({ searchParams }: PageProps) {
                   ))}
                 </tr>
                 <tr className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-6 py-4 font-semibold text-gray-900">Otterly Access</td>
+                  <td className="px-6 py-4 font-semibold text-gray-900">GEO Audits / Month</td>
                   {plans.map((plan) => (
-                    <td key={plan.id} className="px-6 py-4 text-center">
-                      {plan.otterlyAccess ? (
-                        <span className="text-green-600 font-bold">Yes</span>
-                      ) : (
-                        <span className="text-gray-400">No</span>
-                      )}
+                    <td key={plan.id} className="px-6 py-4 text-center text-gray-700">
+                      {plan.maxGeoAuditsPerMonth >= 999 ? 'Unlimited' : plan.maxGeoAuditsPerMonth}
                     </td>
                   ))}
                 </tr>

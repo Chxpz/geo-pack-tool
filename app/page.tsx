@@ -121,7 +121,7 @@ export default function Home() {
               },
               {
                 icon: '🌐',
-                title: 'Brand Visibility Index (Otterly)',
+                title: 'Brand Visibility Index',
                 desc: '6-platform coverage, Brand Visibility Index (BVI) quadrant analysis, and Normalized Sonar Score (NSS) tracking.',
               },
             ].map((pillar) => (

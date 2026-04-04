@@ -4,7 +4,7 @@
  * Usage:
  *   const handler = withPlanCheck(
  *     async (request, session) => { ... },
- *     ['otterly', 'concierge']
+ *     ['geo_audit', 'concierge']
  *   );
  *
  *   export const POST = handler;
@@ -16,7 +16,7 @@ import { getUserSubscription } from '@/lib/stripe';
 import { canAccessFeature } from '@/lib/plan-limits';
 import type { Session } from 'next-auth';
 
-export type RequiredFeature = 'otterly' | 'otterly_geo_audit' | 'concierge';
+export type RequiredFeature = 'geo_audit' | 'concierge';
 
 export interface GatedRequest {
   request: NextRequest;
